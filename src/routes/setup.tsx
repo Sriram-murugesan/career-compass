@@ -45,12 +45,15 @@ function Setup() {
   });
   const [draft, setDraft] = useState("");
   const navigate = useNavigate();
-  const key = steps[step].key;
+  const active = steps[step] ?? steps[0];
+  const key = active.key;
 
   const toggle = (tag: string) =>
     setSelected((s) => ({
       ...s,
-      [key]: s[key].includes(tag) ? s[key].filter((t) => t !== tag) : [...s[key], tag],
+      [key]: (s[key] ?? []).includes(tag)
+        ? (s[key] ?? []).filter((t) => t !== tag)
+        : [...(s[key] ?? []), tag],
     }));
 
   return (
@@ -91,8 +94,8 @@ function Setup() {
         </ol>
 
         <section key={key} className="rise-in mt-12">
-          <h2 className="text-sm font-medium">{steps[step].label}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{steps[step].hint}</p>
+          <h2 className="text-sm font-medium">{active.label}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{active.hint}</p>
 
           <form
             className="mt-6"
@@ -100,21 +103,21 @@ function Setup() {
               e.preventDefault();
               const v = draft.trim();
               if (!v) return;
-              setSelected((s) => ({ ...s, [key]: [...s[key], v] }));
+              setSelected((s) => ({ ...s, [key]: [...(s[key] ?? []), v] }));
               setDraft("");
             }}
           >
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={`Add a ${steps[step].label.toLowerCase().replace(/s$/, "")} and press Enter`}
+              placeholder={`Add a ${active.label.toLowerCase().replace(/s$/, "")} and press Enter`}
               className="w-full border-b border-border bg-transparent pb-2 text-sm outline-none transition-colors duration-300 placeholder:text-muted-foreground/60 focus:border-ink"
             />
           </form>
 
           <div className="mt-6 flex flex-wrap gap-2">
-            {[...new Set([...suggestions[key], ...selected[key]])].map((tag) => {
-              const on = selected[key].includes(tag);
+            {[...new Set([...(suggestions[key] ?? []), ...(selected[key] ?? [])])].map((tag) => {
+              const on = (selected[key] ?? []).includes(tag);
               return (
                 <button
                   key={tag}
