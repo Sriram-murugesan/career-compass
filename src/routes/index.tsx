@@ -3,6 +3,7 @@ import { useState } from "react";
 import { UserRound } from "lucide-react";
 import { OutlineIcon } from "@/components/OutlineIcon";
 import { LineButton } from "@/components/LineButton";
+import { useUserProfile } from "@/context/UserProfileContext";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -27,10 +28,14 @@ function Field({
   label,
   type = "text",
   placeholder,
+  value,
+  onChange,
 }: {
   label: string;
   type?: string;
   placeholder?: string;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <label className="group block">
@@ -38,6 +43,8 @@ function Field({
       <input
         type={type}
         placeholder={placeholder}
+        value={value}
+        onChange={onChange}
         className="mt-2 w-full border-b border-border bg-transparent pb-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-ink"
         style={{ transition: "border-color 300ms cubic-bezier(0.65,0,0.35,1)" }}
       />
@@ -47,7 +54,20 @@ function Field({
 
 function Entry() {
   const [mode, setMode] = useState<"in" | "up">("in");
+  const { profile, updateProfile } = useUserProfile();
+  const [name, setName] = useState(profile.name || "");
+  const [email, setEmail] = useState(profile.email || "");
+  const [password, setPassword] = useState("");
   const navigate = useNavigate();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateProfile({
+      name: name.trim() || (mode === "up" ? "Ada Lovelace" : profile.name),
+      email: email.trim() || profile.email,
+    });
+    navigate({ to: mode === "up" ? "/setup" : "/dashboard" });
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center px-6">
@@ -85,16 +105,29 @@ function Entry() {
           ))}
         </div>
 
-        <form
-          className="space-y-7"
-          onSubmit={(e) => {
-            e.preventDefault();
-            navigate({ to: mode === "up" ? "/setup" : "/dashboard" });
-          }}
-        >
-          {mode === "up" && <Field label="Full name" placeholder="Ada Lovelace" />}
-          <Field label="Email" type="email" placeholder="you@domain.com" />
-          <Field label="Password" type="password" placeholder="••••••••" />
+        <form className="space-y-7" onSubmit={handleSubmit}>
+          {mode === "up" && (
+            <Field
+              label="Full name"
+              placeholder="Ada Lovelace"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          )}
+          <Field
+            label="Email"
+            type="email"
+            placeholder="you@domain.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Field
+            label="Password"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
           <LineButton type="submit" className="w-full">
             {mode === "in" ? "Continue" : "Start profile setup"}
           </LineButton>

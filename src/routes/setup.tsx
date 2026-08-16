@@ -5,6 +5,8 @@ import { AppShell } from "@/components/AppShell";
 import { OutlineIcon } from "@/components/OutlineIcon";
 import { LineButton } from "@/components/LineButton";
 import { cn } from "@/lib/utils";
+import { useUserProfile, type SkillItem } from "@/context/UserProfileContext";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/setup")({
   head: () => ({
@@ -37,12 +39,15 @@ const suggestions: Record<string, string[]> = {
 };
 
 function Setup() {
+  const { profile, updateSkills, updateInterests, updateGoals } = useUserProfile();
   const [step, setStep] = useState(0);
+
   const [selected, setSelected] = useState<Record<string, string[]>>({
-    skills: ["TypeScript"],
-    interests: [],
-    goals: [],
+    skills: profile.skills.map((s) => s.name),
+    interests: profile.interests.length > 0 ? profile.interests : ["AI tooling", "Infrastructure"],
+    goals: profile.goals.length > 0 ? profile.goals : ["Senior engineer", "Remote role"],
   });
+
   const [draft, setDraft] = useState("");
   const navigate = useNavigate();
   const active = steps[step] ?? steps[0];
@@ -56,6 +61,31 @@ function Setup() {
         : [...(s[key] ?? []), tag],
     }));
 
+  const handleComplete = () => {
+    // Preserve existing category and level if skill already exists, else default to Technical / Advanced
+    const skillsList = selected["skills"] || [];
+    const newSkills: SkillItem[] = skillsList.map((name) => {
+      const existing = profile.skills.find((s) => s.name.toLowerCase() === name.toLowerCase());
+      return (
+        existing || {
+          name,
+          category: name.includes("Leadership") ? "Soft Skills" : name.includes("Figma") ? "Tools" : "Technical",
+          level: "Advanced",
+        }
+      );
+    });
+
+    updateSkills(newSkills);
+    updateInterests(selected["interests"] || []);
+    updateGoals(selected["goals"] || []);
+
+    toast.success("Profile setup complete! 7 AI Agents initialized.", {
+      description: `Welcome, ${profile.name}. Your career profile is now active.`,
+    });
+
+    navigate({ to: "/profile" });
+  };
+
   return (
     <AppShell>
       <div className="mx-auto max-w-2xl">
@@ -63,6 +93,9 @@ function Setup() {
         <h1 className="mt-3 text-2xl font-medium tracking-tight">
           Give the agents something to work with
         </h1>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Setting up profile context for <span className="font-medium text-foreground">{profile.name}</span>
+        </p>
 
         <ol className="mt-10 flex items-center">
           {steps.map((s, i) => (
@@ -125,7 +158,7 @@ function Setup() {
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-sm transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)]",
                     on
-                      ? "border-ink text-ink"
+                      ? "border-ink text-ink bg-accent/10"
                       : "border-border text-muted-foreground hover:border-border-strong hover:text-foreground",
                   )}
                 >
@@ -147,12 +180,10 @@ function Setup() {
           <LineButton
             variant={step === steps.length - 1 ? "solid" : "outline"}
             onClick={() =>
-              step === steps.length - 1
-                ? navigate({ to: "/dashboard" })
-                : setStep((s) => s + 1)
+              step === steps.length - 1 ? handleComplete() : setStep((s) => s + 1)
             }
           >
-            {step === steps.length - 1 ? "Activate agents" : "Continue"}
+            {step === steps.length - 1 ? "Save & View Profile" : "Continue"}
           </LineButton>
         </div>
       </div>

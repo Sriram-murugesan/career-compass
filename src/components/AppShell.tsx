@@ -18,7 +18,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               Agents
             </Link>
             <Link
-              to="/setup"
+              to="/profile"
               className="transition-colors duration-300 hover:text-ink [&.active]:text-foreground"
             >
               Profile

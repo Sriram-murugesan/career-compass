@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { OutlineIcon } from "@/components/OutlineIcon";
 import { agents, type Agent } from "@/lib/agents";
+import { useUserProfile } from "@/context/UserProfileContext";
+import { Sparkles, ShieldCheck, ArrowRight } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -45,20 +47,43 @@ function AgentCard({ agent, index }: { agent: Agent; index: number }) {
 }
 
 function Dashboard() {
+  const { profile, completionPercentage } = useUserProfile();
   const foundation = agents.filter((a) => a.phase === "foundation");
   const growth = agents.filter((a) => a.phase === "growth");
+  const firstName = profile.name ? profile.name.split(" ")[0] : "Ada";
 
   return (
     <AppShell>
-      <header className="max-w-xl">
-        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-          AI multi-agent system
-        </p>
-        <h1 className="mt-3 text-2xl font-medium tracking-tight">Good afternoon, Ada</h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Your pipeline runs left to right. Each agent hands its output to the next; the assistant
-          in the corner can reach all of them.
-        </p>
+      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div className="max-w-xl">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <Sparkles size={12} className="text-ink" /> AI Multi-Agent System
+          </p>
+          <h1 className="mt-3 text-2xl font-medium tracking-tight">Good afternoon, {firstName}</h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Your pipeline runs left to right. Tailored for your profile as a{" "}
+            <span className="font-medium text-foreground">{profile.title}</span>.
+          </p>
+        </div>
+
+        <Link
+          to="/profile"
+          className="group inline-flex items-center gap-3 rounded-lg border border-border p-4 transition-colors duration-300 hover:border-ink"
+        >
+          <OutlineIcon icon={ShieldCheck} size={22} />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-foreground">Profile Context</span>
+              <span className="text-[11px] tabular-nums text-muted-foreground">
+                {completionPercentage}% Sync
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {profile.skills.length} skills · {profile.resume?.atsScore}% ATS score
+            </p>
+          </div>
+          <ArrowRight size={14} className="text-muted-foreground transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-ink" />
+        </Link>
       </header>
 
       <section className="mt-14">

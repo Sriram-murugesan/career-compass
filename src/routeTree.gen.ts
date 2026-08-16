@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents.$agentId'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetupRoute = SetupRouteImport.update({
@@ -38,12 +44,14 @@ const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/profile': typeof ProfileRoute
   '/setup': typeof SetupRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/profile': typeof ProfileRoute
   '/setup': typeof SetupRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
 }
@@ -51,20 +59,23 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/profile': typeof ProfileRoute
   '/setup': typeof SetupRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/setup' | '/agents/$agentId'
+  fullPaths: '/' | '/dashboard' | '/profile' | '/setup' | '/agents/$agentId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/setup' | '/agents/$agentId'
-  id: '__root__' | '/' | '/dashboard' | '/setup' | '/agents/$agentId'
+  to: '/' | '/dashboard' | '/profile' | '/setup' | '/agents/$agentId'
+  id:
+    '__root__' | '/' | '/dashboard' | '/profile' | '/setup' | '/agents/$agentId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  ProfileRoute: typeof ProfileRoute
   SetupRoute: typeof SetupRoute
   AgentsAgentIdRoute: typeof AgentsAgentIdRoute
 }
@@ -83,6 +94,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/setup': {
@@ -105,6 +123,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  ProfileRoute: ProfileRoute,
   SetupRoute: SetupRoute,
   AgentsAgentIdRoute: AgentsAgentIdRoute,
 }
