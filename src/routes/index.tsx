@@ -289,12 +289,12 @@ function Entry() {
             <CompassLogo size={52} />
             <div>
               <h1
-                className="text-xl font-medium tracking-tight"
+                className="text-2xl md:text-3xl font-semibold tracking-tight brand-animate brand-interactive"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Career Compass
               </h1>
-              <p className="mt-1.5 text-xs text-muted-foreground">
+              <p className="mt-2 text-xs text-muted-foreground">
                 Seven agents. One deliberate career path.
               </p>
             </div>

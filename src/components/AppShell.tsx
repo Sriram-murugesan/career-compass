@@ -33,14 +33,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       <AnimatedLines count={36} seed={0xcafebabe} />
 
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
           <Link
             to="/dashboard"
             className="group flex items-center gap-2.5 transition-opacity hover:opacity-80"
           >
             <CompassMark />
             <span
-              className="text-sm font-medium tracking-tight"
+              className="text-base md:text-lg font-semibold tracking-tight brand-animate brand-interactive"
               style={{ fontFamily: "var(--font-display)" }}
             >
               Career&nbsp;Compass
@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-5xl px-6 py-12">{children}</main>
+      <main className="relative z-10 mx-auto max-w-6xl px-6 py-12">{children}</main>
       <Chatbot />
     </div>
   );
