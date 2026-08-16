@@ -126,7 +126,7 @@ function Setup() {
           ))}
         </ol>
 
-        <section key={key} className="rise-in mt-12">
+        <section key={key} className="rise-in mt-12 rounded-lg border border-border bg-background p-6">
           <h2 className="text-sm font-medium">{active.label}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{active.hint}</p>
 

@@ -2,10 +2,29 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* ---- Local fonts ---- */
+@font-face {
+  font-family: "Comfortaa";
+  src: url("/Comfortaa/Comfortaa-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Playwrite US Modern";
+  src: url("/Playwrite_US_Modern/PlaywriteUSModern-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "General Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Comfortaa", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Playwrite US Modern", Georgia, serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Fira Code", monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -162,3 +181,55 @@
 @utility rise-in {
   animation: rise-in 420ms cubic-bezier(0.65, 0, 0.35, 1) both;
 }
+
+/* ---- Sign-in page: animated roaming lines ---- */
+@keyframes line-drift-1 {
+  0%   { transform: translateX(-100%) rotate(var(--line-angle, -35deg)); opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { transform: translateX(200vw) rotate(var(--line-angle, -35deg)); opacity: 0; }
+}
+@keyframes line-drift-2 {
+  0%   { transform: translateY(-100%) rotate(var(--line-angle, 25deg)); opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { transform: translateY(160vh) rotate(var(--line-angle, 25deg)); opacity: 0; }
+}
+
+.entry-line {
+  position: absolute;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--ink) 18%, transparent) 40%,
+    color-mix(in oklab, var(--ink) 18%, transparent) 60%,
+    transparent 100%
+  );
+  border-radius: 9999px;
+  will-change: transform, opacity;
+}
+.entry-line.drift-h {
+  height: 1px;
+  width: clamp(120px, 20vw, 320px);
+  animation: line-drift-1 var(--line-dur, 8s) var(--line-delay, 0s) ease-in-out infinite;
+}
+.entry-line.drift-v {
+  width: 1px;
+  height: clamp(80px, 15vh, 220px);
+  animation: line-drift-2 var(--line-dur, 10s) var(--line-delay, 0s) ease-in-out infinite;
+}
+
+/* ---- Compass needle spin on hover ---- */
+@keyframes compass-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.compass-needle {
+  transform-origin: 50% 50%;
+  transition: transform 600ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+.compass-logo:hover .compass-needle {
+  animation: compass-spin 1s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+

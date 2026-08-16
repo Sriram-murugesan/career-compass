@@ -29,7 +29,7 @@ function AgentCard({ agent, index }: { agent: Agent; index: number }) {
     <Link
       to="/agents/$agentId"
       params={{ agentId: agent.id }}
-      className="rise-in group relative flex flex-col justify-between rounded-lg border border-border p-5 transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)] hover:border-ink"
+      className="rise-in group relative flex flex-col justify-between rounded-lg border border-border bg-background p-5 transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)] hover:border-ink"
       style={{ animationDelay: `${index * 45}ms` }}
     >
       <div className="flex items-start justify-between">
@@ -59,7 +59,12 @@ function Dashboard() {
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
             <Sparkles size={12} className="text-ink" /> AI Multi-Agent System
           </p>
-          <h1 className="mt-3 text-2xl font-medium tracking-tight">Good afternoon, {firstName}</h1>
+          <h1
+            className="mt-3 text-2xl font-medium tracking-tight"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Good afternoon, {firstName}
+          </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Your pipeline runs left to right. Tailored for your profile as a{" "}
             <span className="font-medium text-foreground">{profile.title}</span>.
@@ -68,7 +73,7 @@ function Dashboard() {
 
         <Link
           to="/profile"
-          className="group inline-flex items-center gap-3 rounded-lg border border-border p-4 transition-colors duration-300 hover:border-ink"
+          className="group inline-flex items-center gap-3 rounded-lg border border-border bg-background p-4 transition-colors duration-300 hover:border-ink"
         >
           <OutlineIcon icon={ShieldCheck} size={22} />
           <div>

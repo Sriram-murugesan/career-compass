@@ -32,7 +32,7 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-border p-6">
+    <section className="rounded-lg border border-border bg-background p-6">
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-medium">{title}</h2>
         {aside && <span className="text-xs text-muted-foreground">{aside}</span>}

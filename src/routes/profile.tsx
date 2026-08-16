@@ -60,7 +60,7 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-border p-6">
+    <section className="rounded-lg border border-border bg-background p-6">
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-medium">{title}</h2>
         {aside && <span className="text-xs text-muted-foreground">{aside}</span>}
@@ -167,7 +167,12 @@ function ProfilePage() {
         <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
           <div className="max-w-xl">
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">User Profile</p>
-            <h1 className="mt-3 text-2xl font-medium tracking-tight">{profile.name}</h1>
+            <h1
+              className="mt-3 text-2xl font-medium tracking-tight"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {profile.name}
+            </h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {profile.title} · {profile.location} · {profile.workPreference}
             </p>
@@ -299,7 +304,7 @@ function ProfilePage() {
 
         {/* 4 Minimal Metric Highlight Cards */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rise-in group relative flex flex-col justify-between rounded-lg border border-border p-5 transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)] hover:border-ink">
+          <div className="rise-in group relative flex flex-col justify-between rounded-lg border border-border bg-background p-5 transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)] hover:border-ink">
             <div className="flex items-start justify-between">
               <OutlineIcon icon={FileText} size={22} />
               <span className="text-[11px] tabular-nums text-muted-foreground">01</span>
@@ -310,7 +315,7 @@ function ProfilePage() {
             </div>
           </div>
 
-          <div className="rise-in group relative flex flex-col justify-between rounded-lg border border-border p-5 transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)] hover:border-ink" style={{ animationDelay: "45ms" }}>
+          <div className="rise-in group relative flex flex-col justify-between rounded-lg border border-border bg-background p-5 transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)] hover:border-ink" style={{ animationDelay: "45ms" }}>
             <div className="flex items-start justify-between">
               <OutlineIcon icon={Layers} size={22} />
               <span className="text-[11px] tabular-nums text-muted-foreground">02</span>
@@ -323,7 +328,7 @@ function ProfilePage() {
             </div>
           </div>
 
-          <div className="rise-in group relative flex flex-col justify-between rounded-lg border border-border p-5 transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)] hover:border-ink" style={{ animationDelay: "90ms" }}>
+          <div className="rise-in group relative flex flex-col justify-between rounded-lg border border-border bg-background p-5 transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)] hover:border-ink" style={{ animationDelay: "90ms" }}>
             <div className="flex items-start justify-between">
               <OutlineIcon icon={Briefcase} size={22} />
               <span className="text-[11px] tabular-nums text-muted-foreground">03</span>
@@ -336,7 +341,7 @@ function ProfilePage() {
             </div>
           </div>
 
-          <div className="rise-in group relative flex flex-col justify-between rounded-lg border border-border p-5 transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)] hover:border-ink" style={{ animationDelay: "135ms" }}>
+          <div className="rise-in group relative flex flex-col justify-between rounded-lg border border-border bg-background p-5 transition-colors duration-300 [transition-timing-function:cubic-bezier(0.65,0,0.35,1)] hover:border-ink" style={{ animationDelay: "135ms" }}>
             <div className="flex items-start justify-between">
               <OutlineIcon icon={Activity} size={22} />
               <span className="text-[11px] tabular-nums text-muted-foreground">04</span>

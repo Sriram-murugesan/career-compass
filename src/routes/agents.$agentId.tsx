@@ -45,7 +45,12 @@ function AgentPage() {
           <OutlineIcon icon={agent.icon} size={22} />
         </span>
         <div>
-          <h1 className="text-xl font-medium tracking-tight">{agent.name}</h1>
+          <h1
+            className="text-xl font-medium tracking-tight"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {agent.name}
+          </h1>
           <p className="mt-1 max-w-lg text-sm leading-relaxed text-muted-foreground">
             {agent.summary}
           </p>
