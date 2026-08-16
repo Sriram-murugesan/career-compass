@@ -76,10 +76,10 @@ function Dashboard() {
       <div className="relative my-10 h-12">
         <svg className="h-full w-full" viewBox="0 0 100 48" preserveAspectRatio="none">
           <path
-            d="M 88 0 C 88 24, 12 24, 12 48"
+            d="M 88 0 L 88 20 L 12 28 L 12 48"
             fill="none"
             stroke="currentColor"
-            strokeWidth="0.4"
+            strokeWidth="0.3"
             className="path-draw text-border-strong"
           />
         </svg>
