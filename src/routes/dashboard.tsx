@@ -379,11 +379,12 @@ function Dashboard() {
                           
                           <div
                             className={cn(
-                              "max-w-[90%] md:max-w-[80%] rounded-lg border p-4 text-xs leading-relaxed space-y-4 shadow-2xs",
+                              "text-xs leading-relaxed space-y-4",
                               isUser
-                                ? "bg-secondary border-border text-foreground"
-                                : "bg-card border-border-strong text-foreground"
+                                ? "max-w-[85%] rounded-lg border border-border bg-secondary px-4 py-3 text-foreground"
+                                : "w-full text-foreground"
                             )}
+
                           >
                             <p className="whitespace-pre-line leading-relaxed font-medium">{m.text}</p>
 
