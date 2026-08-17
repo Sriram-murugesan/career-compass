@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <AnimatedLines count={36} seed={0xcafebabe} />
 
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+        <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center justify-between px-6 lg:px-10 xl:px-14">
           <Link
             to="/dashboard"
             className="group flex items-center gap-2.5 transition-opacity hover:opacity-80"
@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-6xl px-6 py-12">{children}</main>
+      <main className="relative z-10 mx-auto w-full max-w-[1440px] px-6 py-12 lg:px-10 xl:px-14">{children}</main>
       <Chatbot />
     </div>
   );
