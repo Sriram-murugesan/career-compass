@@ -623,10 +623,11 @@ function Dashboard() {
                       connected to all 7 active agents
                     </span>
                   </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+
         )}
       </div>
     </AppShell>
