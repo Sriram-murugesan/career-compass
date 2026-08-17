@@ -234,16 +234,16 @@ function Dashboard() {
       {/* ── MODE 2: Claude-like Chat Assistant Interface ── */}
       <div
         className={cn(
-          "transition-all duration-500 ease-in-out",
+          "transition-all duration-500 ease-in-out h-full min-h-0",
           !isChatActive ? "opacity-0 pointer-events-none absolute translate-y-4 scale-95" : "opacity-100"
         )}
       >
         {isChatActive && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 h-[calc(100vh-170px)] md:h-[calc(100vh-190px)] min-h-0 overflow-hidden">
             {/* Top minimized agents circles bar */}
-            <div className="relative rounded-lg border border-border bg-card/30 p-4">
+            <div className="relative rounded-lg border border-border bg-card/30 p-3 shrink-0">
               <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-                <span className="text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                <span className="text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 font-medium">
                   <Bot size={13} className="text-ink" /> Connected Agents
                 </span>
                 
@@ -278,17 +278,17 @@ function Dashboard() {
                   })}
                 </div>
                 
-                <span className="text-xs text-muted-foreground hidden md:inline">
+                <span className="text-xs text-muted-foreground hidden md:inline font-medium">
                   {isOrchestrating ? "Routing query..." : "All agents ready"}
                 </span>
               </div>
             </div>
 
             {/* Split layout: Chat History (Left) + Chat Area (Right) */}
-            <div className="grid gap-6 md:grid-cols-12 items-stretch min-h-[30rem] max-h-[38rem]">
+            <div className="grid gap-4 md:grid-cols-12 items-stretch flex-1 min-h-0 overflow-hidden">
               {/* Left sidebar: Chat History */}
-              <div className="md:col-span-3 border border-border bg-card rounded-lg flex flex-col overflow-hidden">
-                <div className="p-3 border-b border-border">
+              <div className="md:col-span-3 border border-border bg-card rounded-lg flex flex-col h-full min-h-0 overflow-hidden shadow-2xs">
+                <div className="p-3 border-b border-border shrink-0">
                   <button
                     onClick={() => startNewConversation()}
                     className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border-strong py-2 text-xs font-medium text-muted-foreground transition-all duration-300 hover:border-ink hover:text-ink hover:bg-accent/5"
@@ -298,7 +298,7 @@ function Dashboard() {
                   </button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-none">
+                <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-none min-h-0">
                   {conversations.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-6 italic">No history yet.</p>
                   ) : (
@@ -331,9 +331,9 @@ function Dashboard() {
               </div>
 
               {/* Right column: Chat Area */}
-              <div className="md:col-span-9 border border-border bg-card rounded-lg flex flex-col overflow-hidden">
+              <div className="md:col-span-9 border border-border bg-card rounded-lg flex flex-col h-full min-h-0 overflow-hidden shadow-2xs">
                 {/* Active Chat Header */}
-                <header className="px-4 py-3 border-b border-border flex items-center justify-between bg-card">
+                <header className="px-4 py-3 border-b border-border flex items-center justify-between bg-card shrink-0">
                   <div>
                     <h2 className="text-xs font-semibold text-foreground truncate max-w-sm md:max-w-md">
                       {activeConversation?.title || "New Chat"}
@@ -351,11 +351,11 @@ function Dashboard() {
                 </header>
 
                 {/* Messages feed */}
-                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 bg-background/20">
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 bg-background/20 min-h-0 modern-scrollbar">
                   {messages.length === 0 ? (
                     /* Initial Claude-like state */
                     <div className="h-full flex flex-col justify-center items-center max-w-lg mx-auto text-center space-y-6 py-8">
-                      <div className="rounded-full border border-border p-4 bg-background">
+                      <div className="rounded-full border border-border p-4 bg-background shadow-2xs">
                         <MessageCircle size={28} className="text-ink" />
                       </div>
                       <div>
@@ -378,7 +378,7 @@ function Dashboard() {
                           <button
                             key={sug}
                             onClick={() => handleSuggestionClick(sug)}
-                            className="text-[11px] text-left p-3 rounded-md border border-border bg-background hover:border-ink hover:bg-accent/5 text-muted-foreground hover:text-foreground transition-all duration-300 leading-normal"
+                            className="text-[11px] text-left p-3 rounded-md border border-border bg-card hover:border-ink hover:bg-accent/5 text-muted-foreground hover:text-foreground transition-all duration-300 leading-normal hover:shadow-2xs"
                           >
                             {sug}
                           </button>
@@ -408,7 +408,7 @@ function Dashboard() {
 
                             {/* Orchestration display (Intent Router Pipeline) */}
                             {!isUser && m.isOrchestration && m.orchestration && (
-                              <div className="border border-border rounded-lg bg-background/50 p-4 space-y-4 mt-3">
+                              <div className="border border-border rounded-lg bg-background/40 p-4 space-y-4 mt-3">
                                 {/* Header */}
                                 <div className="flex items-center justify-between border-b border-border pb-2.5">
                                   <div className="flex items-center gap-2">
@@ -422,8 +422,11 @@ function Dashboard() {
                                   </span>
                                 </div>
 
-                                {/* Orchestration Steps list */}
-                                <div className="space-y-2.5">
+                                {/* Orchestration Steps list with connecting dotted lines */}
+                                <div className="relative pl-4 space-y-3">
+                                  {/* Connector Line */}
+                                  <div className="absolute left-[9px] top-2 bottom-2 w-[1px] bg-border-strong border-dashed border-l" />
+
                                   {m.orchestration.steps.map((step, idx) => {
                                     const isDone = step.status === "completed";
                                     const isRunning = step.status === "running";
@@ -431,21 +434,25 @@ function Dashboard() {
                                       <div
                                         key={step.agentId}
                                         className={cn(
-                                          "flex items-start gap-3 rounded-md border p-2 transition-all duration-300 text-[11px]",
-                                          isRunning ? "border-ink bg-accent/5" : "border-border bg-transparent"
+                                          "relative flex items-start gap-3 text-[11px] transition-all duration-300",
+                                          isRunning ? "text-ink" : "text-muted-foreground"
                                         )}
                                       >
-                                        <span className="mt-0.5">
+                                        {/* Status Dot */}
+                                        <span className="absolute -left-[12px] top-1 flex h-2 w-2 rounded-full border bg-background items-center justify-center">
                                           {isDone ? (
-                                            <CheckCircle2 size={13} className="text-foreground" />
+                                            <span className="h-1.5 w-1.5 rounded-full bg-foreground" />
                                           ) : isRunning ? (
-                                            <Loader2 size={13} className="animate-spin text-ink" />
+                                            <span className="h-1.5 w-1.5 rounded-full bg-ink animate-ping" />
                                           ) : (
-                                            <CircleDashed size={13} className="text-muted-foreground" />
+                                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
                                           )}
                                         </span>
-                                        <div className="flex-1">
-                                          <p className="font-semibold text-foreground">{step.agentName}</p>
+                                        
+                                        <div className="pl-3 flex-1">
+                                          <p className={cn("font-semibold", isRunning ? "text-ink" : "text-foreground")}>
+                                            {step.agentName}
+                                          </p>
                                           <p className="text-[10px] text-muted-foreground mt-0.5">{step.details}</p>
                                         </div>
                                       </div>
@@ -465,11 +472,11 @@ function Dashboard() {
                                         </span>
                                         <div className="grid gap-3">
                                           {m.orchestration.resultData.map((job: any) => (
-                                            <div key={job.id} className="rounded-md border border-border bg-background p-4 flex flex-col justify-between sm:flex-row sm:items-start gap-3">
+                                            <div key={job.id} className="rounded-md border border-border bg-card p-4 flex flex-col justify-between sm:flex-row sm:items-start gap-3 hover:border-ink hover:shadow-2xs transition-all duration-300">
                                               <div>
                                                 <div className="flex items-center gap-2">
                                                   <h4 className="text-xs font-semibold">{job.role}</h4>
-                                                  <span className="text-[10px] bg-secondary text-ink px-2 py-0.5 rounded-full">{job.match}% match</span>
+                                                  <span className="text-[10px] text-ink font-semibold bg-accent/5 px-2 py-0.5 rounded-full">{job.match}% match</span>
                                                 </div>
                                                 <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] text-muted-foreground">
                                                   <span className="font-medium text-foreground flex items-center gap-1">
@@ -489,7 +496,7 @@ function Dashboard() {
                                               <LineButton
                                                 variant="solid"
                                                 onClick={() => handleTailorResume(job)}
-                                                className="text-[10px] py-1 px-3 self-end sm:self-start gap-1 font-semibold"
+                                                className="text-[10px] py-1 px-3 self-end sm:self-start gap-1 font-semibold whitespace-nowrap shrink-0 animate-in fade-in"
                                               >
                                                 <Sparkles size={11} /> Tailor Resume
                                               </LineButton>
@@ -505,7 +512,7 @@ function Dashboard() {
                                         <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block">
                                           Resume compliance check (Validation Agent)
                                         </span>
-                                        <div className="rounded-md border border-border bg-background divide-y divide-border text-[11px]">
+                                        <div className="rounded-md border border-border bg-card divide-y divide-border text-[11px]">
                                           {m.orchestration.resultData.map((check: any) => (
                                             <div key={check.label} className="p-3 flex items-center justify-between gap-4">
                                               <div>
@@ -554,7 +561,7 @@ function Dashboard() {
                                         <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block">
                                           Generated Practice questions (Interview Agent)
                                         </span>
-                                        <div className="rounded-md border border-border bg-background divide-y divide-border text-[11px]">
+                                        <div className="rounded-md border border-border bg-card divide-y divide-border text-[11px]">
                                           {m.orchestration.resultData.map((q: string, idx: number) => (
                                             <div key={idx} className="p-3 flex items-start gap-3">
                                               <span className="text-muted-foreground font-semibold tabular-nums mt-0.5">
@@ -568,7 +575,7 @@ function Dashboard() {
                                           <Link
                                             to="/agents/$agentId"
                                             params={{ agentId: "interview" }}
-                                            className="inline-flex w-full justify-center items-center gap-2 rounded-md border border-border py-2 text-xs font-semibold hover:border-ink hover:text-ink transition-all duration-300 bg-background"
+                                            className="inline-flex w-full justify-center items-center gap-2 rounded-md border border-border py-2 text-xs font-semibold hover:border-ink hover:text-ink transition-all duration-300 bg-card"
                                           >
                                             <Play size={12} fill="currentColor" />
                                             Go to Mock Interview workspace
@@ -591,8 +598,8 @@ function Dashboard() {
                 </div>
 
                 {/* Bottom chat input */}
-                <div className="p-4 border-t border-border bg-card">
-                  <div className="flex items-end gap-3 border border-border rounded-lg p-2 bg-background focus-within:border-ink transition-all duration-300">
+                <div className="p-4 border-t border-border bg-card shrink-0">
+                  <div className="flex items-end gap-3 border border-border rounded-lg p-2.5 bg-background focus-within:border-ink transition-all duration-300 shadow-2xs">
                     <textarea
                       ref={inputRef}
                       rows={1}
@@ -613,7 +620,7 @@ function Dashboard() {
                       disabled={!chatDraft.trim() || isOrchestrating}
                       aria-label="Send message"
                       className={cn(
-                        "rounded-md border p-1.5 transition-all duration-300",
+                        "rounded-md border p-2 transition-all duration-300 shrink-0",
                         chatDraft.trim() && !isOrchestrating
                           ? "border-ink text-ink bg-accent/5 hover:scale-105"
                           : "border-border text-muted-foreground opacity-50 cursor-not-allowed"
