@@ -168,7 +168,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [activeConversationId, setActiveConversationId] = useState<string | null>(() => {
-    if (conversations.length > 0) return conversations[0].id;
+    if (conversations.length > 0) return conversations[0]!.id;
     return null;
   });
 
@@ -206,7 +206,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (activeConversationId === id) {
       const remaining = conversations.filter((c) => c.id !== id);
-      setActiveConversationId(remaining.length > 0 ? remaining[0].id : null);
+      setActiveConversationId(remaining.length > 0 ? remaining[0]!.id : null);
     }
   };
 
@@ -239,7 +239,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setConversations((prev) =>
       prev.map((c) => {
         if (c.id === convId) {
-          const isNewTitle = c.title === "New Conversation" || c.messages.length === 0 || (c.messages.length === 1 && c.messages[0].id.includes("init"));
+          const isNewTitle = c.title === "New Conversation" || c.messages.length === 0 || (c.messages.length === 1 && c.messages[0]!.id.includes("init"));
           return {
             ...c,
             title: isNewTitle ? (cleanText.length > 25 ? cleanText.slice(0, 25) + "..." : cleanText) : c.title,
