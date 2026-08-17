@@ -239,56 +239,11 @@ function Dashboard() {
         )}
       >
         {isChatActive && (
-          <div className="flex flex-col gap-4 h-[calc(100vh-170px)] md:h-[calc(100vh-190px)] min-h-0 overflow-hidden">
-            {/* Top minimized agents circles bar */}
-            <div className="relative rounded-lg border border-border bg-card/30 p-3 shrink-0">
-              <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-                <span className="text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 font-medium">
-                  <Bot size={13} className="text-ink" /> Connected Agents
-                </span>
-                
-                {/* Circles row */}
-                <div className="relative flex items-center gap-3 md:gap-5 py-1">
-                  {/* Dotted connector line */}
-                  <div className="absolute inset-x-4 top-1/2 h-[1px] border-t border-dashed border-border-strong -translate-y-1/2 z-0" />
-                  
-                  {agents.map((a, idx) => {
-                    const isRunning = currentRunningAgentId === a.id;
-                    return (
-                      <Link
-                        key={a.id}
-                        to="/agents/$agentId"
-                        params={{ agentId: a.id }}
-                        title={`${a.name} · ${a.status}`}
-                        className={cn(
-                          "relative z-10 flex h-9 w-9 items-center justify-center rounded-full border bg-background transition-all duration-300 hover:border-ink hover:scale-105",
-                          isRunning ? "agent-circle-pulse text-ink border-ink" : "border-border text-muted-foreground"
-                        )}
-                        style={{ animationDelay: `${idx * 40}ms` }}
-                      >
-                        <OutlineIcon icon={a.icon} size={15} />
-                        {isRunning && (
-                          <span className="absolute -right-0.5 -top-0.5 flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
-                          </span>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-                
-                <span className="text-xs text-muted-foreground hidden md:inline font-medium">
-                  {isOrchestrating ? "Routing query..." : "All agents ready"}
-                </span>
-              </div>
-            </div>
+          <div className="-mx-6 -my-12 flex h-[calc(100vh-3.5rem)] min-h-0 overflow-hidden lg:-mx-10 xl:-mx-14">
+            {/* Left sidebar: Chat History */}
+            <aside className="hidden min-h-0 w-60 shrink-0 flex-col border-r border-border md:flex">
+                <div className="p-3 shrink-0">
 
-            {/* Split layout: Chat History (Left) + Chat Area (Right) */}
-            <div className="grid gap-4 md:grid-cols-12 items-stretch flex-1 min-h-0 overflow-hidden">
-              {/* Left sidebar: Chat History */}
-              <div className="md:col-span-3 border border-border bg-card rounded-lg flex flex-col h-full min-h-0 overflow-hidden shadow-2xs">
-                <div className="p-3 border-b border-border shrink-0">
                   <button
                     onClick={() => startNewConversation()}
                     className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border-strong py-2 text-xs font-medium text-muted-foreground transition-all duration-300 hover:border-ink hover:text-ink hover:bg-accent/5"
