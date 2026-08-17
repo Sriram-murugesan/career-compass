@@ -330,7 +330,9 @@ function Dashboard() {
                 </header>
 
                 {/* Messages feed */}
-                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 bg-background/20 min-h-0 modern-scrollbar">
+                <div className="min-h-0 flex-1 overflow-y-auto modern-scrollbar">
+                  <div className="mx-auto w-full max-w-3xl space-y-8 px-6 py-8">
+
                   {messages.length === 0 ? (
                     /* Initial Claude-like state */
                     <div className="h-full flex flex-col justify-center items-center max-w-lg mx-auto text-center space-y-6 py-8">
