@@ -290,14 +290,37 @@ function Dashboard() {
                 {/* Active Chat Header */}
                 <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-5 py-2.5">
 
-                  <div>
-                    <h2 className="text-xs font-semibold text-foreground truncate max-w-sm md:max-w-md">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-xs font-semibold text-foreground">
                       {activeConversation?.title || "New Chat"}
                     </h2>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Orchestrator pipeline connected
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      {isOrchestrating ? "Routing query..." : "All agents ready"}
                     </p>
                   </div>
+
+                  <div className="ml-auto hidden items-center gap-2 lg:flex">
+                    {agents.map((a) => {
+                      const isRunning = currentRunningAgentId === a.id;
+                      return (
+                        <Link
+                          key={a.id}
+                          to="/agents/$agentId"
+                          params={{ agentId: a.id }}
+                          title={`${a.name} · ${a.status}`}
+                          className={cn(
+                            "relative flex h-7 w-7 items-center justify-center rounded-full border transition-all duration-300 hover:border-ink",
+                            isRunning
+                              ? "agent-circle-pulse border-ink text-ink"
+                              : "border-border text-muted-foreground"
+                          )}
+                        >
+                          <OutlineIcon icon={a.icon} size={13} />
+                        </Link>
+                      );
+                    })}
+                  </div>
+
                   <button
                     onClick={() => setChatActive(false)}
                     className="text-[11px] font-medium text-muted-foreground hover:text-ink border border-border hover:border-ink rounded-md px-2.5 py-1 transition-all duration-300"
