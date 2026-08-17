@@ -242,7 +242,7 @@ function JobSearchAgent() {
 // ----------------------------------------------------
 function ResumeBuilderAgent() {
   const { profile, saveTailoredResume } = useUserProfile();
-  const [selectedJob, setSelectedJob] = useState(jobsList[0]);
+  const [selectedJob, setSelectedJob] = useState(jobsList[0]!);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<number>(0);
   const [currentScore, setCurrentScore] = useState<number>(82);
