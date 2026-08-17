@@ -575,13 +575,15 @@ function Dashboard() {
                       );
                     })
                   )}
-                  <div ref={chatEndRef} />
+                  </div>
                 </div>
 
                 {/* Bottom chat input */}
-                <div className="p-4 border-t border-border bg-card shrink-0">
+                <div className="shrink-0 border-t border-border">
+                  <div className="mx-auto w-full max-w-3xl px-6 py-4">
                   <div className="flex items-end gap-3 border border-border rounded-lg p-2.5 bg-background focus-within:border-ink transition-all duration-300 shadow-2xs">
                     <textarea
+
                       ref={inputRef}
                       rows={1}
                       value={chatDraft}
