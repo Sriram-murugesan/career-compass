@@ -575,7 +575,9 @@ function Dashboard() {
                       );
                     })
                   )}
+                  <div ref={chatEndRef} />
                   </div>
+
                 </div>
 
                 {/* Bottom chat input */}
