@@ -283,12 +283,13 @@ function Dashboard() {
                     ))
                   )}
                 </div>
-              </div>
+              </aside>
 
               {/* Right column: Chat Area */}
-              <div className="md:col-span-9 border border-border bg-card rounded-lg flex flex-col h-full min-h-0 overflow-hidden shadow-2xs">
+              <div className="flex min-w-0 flex-1 flex-col min-h-0 overflow-hidden">
                 {/* Active Chat Header */}
-                <header className="px-4 py-3 border-b border-border flex items-center justify-between bg-card shrink-0">
+                <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-5 py-2.5">
+
                   <div>
                     <h2 className="text-xs font-semibold text-foreground truncate max-w-sm md:max-w-md">
                       {activeConversation?.title || "New Chat"}
