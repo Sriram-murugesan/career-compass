@@ -300,6 +300,9 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const deleteTailoredResume = (id: string) => {
+    // [API] DELETE ENDPOINTS.resume.tailoredDelete(id) -> { deleted: true }
+    // [API] GET ENDPOINTS.resume.export(id)?format=pdf -> file stream (download button)
+
     setProfile((prev) => ({
       ...prev,
       tailoredResumes: (prev.tailoredResumes || []).filter((r) => r.id !== id),
