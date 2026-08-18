@@ -168,6 +168,15 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return DEFAULT_PROFILE;
   });
 
+  // [API] Hydrate the profile from the backend instead of localStorage.
+  // GET ENDPOINTS.profile.get -> PROFILE_TEMPLATE
+  //
+  // useEffect(() => {
+  //   apiFetch<typeof PROFILE_TEMPLATE>(ENDPOINTS.profile.get)
+  //     .then((res) => setProfile((prev) => ({ ...prev, ...res.data })))
+  //     .catch(console.error);
+  // }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
@@ -177,8 +186,11 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [profile]);
 
   const updateProfile = (updates: Partial<UserProfile>) => {
+    // [API] PATCH ENDPOINTS.profile.update  { ...updates } -> PROFILE_TEMPLATE
+    // apiFetch(ENDPOINTS.profile.update, { method: "PATCH", body: JSON.stringify(updates) });
     setProfile((prev) => ({ ...prev, ...updates }));
   };
+
 
   const addSkill = (skill: SkillItem) => {
     setProfile((prev) => {
