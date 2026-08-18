@@ -209,18 +209,32 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const updateSkills = (skills: SkillItem[]) => {
+    // [API] PUT ENDPOINTS.profile.skills  { skills } -> { skills: SkillItem[] }
+    // DELETE ENDPOINTS.profile.skill(name) for removeSkill()
     setProfile((prev) => ({ ...prev, skills }));
   };
 
   const updateInterests = (interests: string[]) => {
+    // [API] PUT ENDPOINTS.profile.interests  { interests } -> { interests: string[] }
     setProfile((prev) => ({ ...prev, interests }));
   };
 
   const updateGoals = (goals: string[]) => {
+    // [API] PUT ENDPOINTS.profile.goals  { goals } -> { goals: string[] }
     setProfile((prev) => ({ ...prev, goals }));
   };
 
   const uploadResumeSimulated = (fileName: string) => {
+    // [API] Real upload + server-side parsing replaces this simulation.
+    // POST ENDPOINTS.resume.upload  (multipart/form-data, field: "file")
+    // -> RESUME_TEMPLATE { fileName, fileUrl, uploadedAt, atsScore, parsedSkillsCount, summary }
+    //
+    // const form = new FormData();
+    // form.append("file", file);
+    // const res = await fetch(`${API_BASE_URL}${ENDPOINTS.resume.upload}`, { method: "POST", body: form });
+    // const { data } = await res.json();
+    // setProfile((prev) => ({ ...prev, resume: data }));
+
     setProfile((prev) => ({
       ...prev,
       resume: {
@@ -238,6 +252,8 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const logActivity = (activity: Omit<ActivityItem, "id" | "timestamp">) => {
+    // [API] POST ENDPOINTS.activity.create { type, title, details, targetCompany, atsScore }
+    //       -> ACTIVITY_TEMPLATE ; GET ENDPOINTS.activity.list -> ACTIVITY_TEMPLATE[]
     const newItem: ActivityItem = {
       ...activity,
       id: `act-${Date.now()}`,
@@ -250,6 +266,9 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const saveTailoredResume = (resume: Omit<TailoredResumeItem, "id" | "createdAt">) => {
+    // [API] POST ENDPOINTS.resume.tailoredCreate { jobId?, jobTitle, company, location }
+    //       -> TAILORED_RESUME_TEMPLATE (id + createdAt + atsScore generated server-side)
+
     const newResume: TailoredResumeItem = {
       ...resume,
       id: `tres-${Date.now()}`,
