@@ -211,8 +211,21 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const sendMessage = (text: string) => {
+    // [API] Replace the local intent-routing simulation below with the orchestrator.
+    // POST ENDPOINTS.chat.orchestrate
+    //   { conversationId: string | null, message: string }
+    // Streams (SSE / chunked JSON) one event per agent step, then a final result:
+    //   { type: "step",   step: { agentId, agentName, status, details } }
+    //   { type: "result", message: CONVERSATION_TEMPLATE.messages[0] }
+    // Non-streaming fallback: POST ENDPOINTS.chat.messages(conversationId)
+    //   { text } -> ChatMessage (with .orchestration populated)
+    //
+    // const res = await apiFetch<typeof CONVERSATION_TEMPLATE.messages[0]>(
+    //   ENDPOINTS.chat.messages(convId), { method: "POST", body: JSON.stringify({ text }) });
+
     const cleanText = text.trim();
     if (!cleanText) return;
+
 
     let convId = activeConversationId;
     if (!convId) {
