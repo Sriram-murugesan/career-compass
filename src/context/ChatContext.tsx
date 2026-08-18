@@ -174,6 +174,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [isOrchestrating, setIsOrchestrating] = useState<boolean>(false);
 
+  // [API] Load history from the backend instead of localStorage.
+  // GET    ENDPOINTS.chat.conversations              -> CONVERSATION_TEMPLATE[] (without messages)
+  // GET    ENDPOINTS.chat.conversation(id)           -> CONVERSATION_TEMPLATE (with messages)
+  // POST   ENDPOINTS.chat.conversations { title }    -> CONVERSATION_TEMPLATE
+  // DELETE ENDPOINTS.chat.conversation(id)           -> { deleted: true }
+  //
+  // useEffect(() => {
+  //   apiFetch<Conversation[]>(ENDPOINTS.chat.conversations)
+  //     .then((res) => setConversations(res.data))
+  //     .catch(console.error);
+  // }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
@@ -181,6 +193,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Failed to save chat history:", e);
     }
   }, [conversations]);
+
 
   const startNewConversation = (initialMessage?: string) => {
     const newId = `conv-${Date.now()}`;
