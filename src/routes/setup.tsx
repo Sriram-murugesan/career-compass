@@ -75,9 +75,21 @@ function Setup() {
       );
     });
 
+    // [API] Persist onboarding selections in one call.
+    // POST ENDPOINTS.onboarding.complete
+    //   { skills: SkillItem[], interests: string[], goals: string[] }
+    // -> PROFILE_TEMPLATE (full updated profile, incl. completionPercentage)
+    //
+    // const res = await apiFetch<typeof PROFILE_TEMPLATE>(ENDPOINTS.onboarding.complete, {
+    //   method: "POST",
+    //   body: JSON.stringify({ skills: newSkills, interests: selected["interests"], goals: selected["goals"] }),
+    // });
+    // updateProfile(res.data);
+
     updateSkills(newSkills);
     updateInterests(selected["interests"] || []);
     updateGoals(selected["goals"] || []);
+
 
     toast.success("Profile setup complete! 7 AI Agents initialized.", {
       description: `Welcome, ${profile.name}. Your career profile is now active.`,

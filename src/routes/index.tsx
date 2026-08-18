@@ -255,12 +255,27 @@ function Entry() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // [API] Authentication — replaces the local-only profile write below.
+    // POST ENDPOINTS.auth.signIn  { email, password }
+    // POST ENDPOINTS.auth.signUp  { name, email, password }
+    // -> AUTH_SESSION_TEMPLATE: { token, expiresAt, user: { id, name, email, isOnboarded } }
+    //
+    // const res = await apiFetch<typeof AUTH_SESSION_TEMPLATE>(
+    //   mode === "up" ? ENDPOINTS.auth.signUp : ENDPOINTS.auth.signIn,
+    //   { method: "POST", body: JSON.stringify({ name, email, password }) },
+    // );
+    // localStorage.setItem("cc_token", res.data.token);
+    // updateProfile(res.data.user);
+    // navigate({ to: res.data.user.isOnboarded ? "/dashboard" : "/setup" });
+
     updateProfile({
       name: name.trim() || (mode === "up" ? "Ada Lovelace" : profile.name),
       email: email.trim() || profile.email,
     });
     navigate({ to: mode === "up" ? "/setup" : "/dashboard" });
   };
+
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-6">

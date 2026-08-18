@@ -174,6 +174,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [isOrchestrating, setIsOrchestrating] = useState<boolean>(false);
 
+  // [API] Load history from the backend instead of localStorage.
+  // GET    ENDPOINTS.chat.conversations              -> CONVERSATION_TEMPLATE[] (without messages)
+  // GET    ENDPOINTS.chat.conversation(id)           -> CONVERSATION_TEMPLATE (with messages)
+  // POST   ENDPOINTS.chat.conversations { title }    -> CONVERSATION_TEMPLATE
+  // DELETE ENDPOINTS.chat.conversation(id)           -> { deleted: true }
+  //
+  // useEffect(() => {
+  //   apiFetch<Conversation[]>(ENDPOINTS.chat.conversations)
+  //     .then((res) => setConversations(res.data))
+  //     .catch(console.error);
+  // }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
@@ -181,6 +193,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Failed to save chat history:", e);
     }
   }, [conversations]);
+
 
   const startNewConversation = (initialMessage?: string) => {
     const newId = `conv-${Date.now()}`;
@@ -211,8 +224,21 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const sendMessage = (text: string) => {
+    // [API] Replace the local intent-routing simulation below with the orchestrator.
+    // POST ENDPOINTS.chat.orchestrate
+    //   { conversationId: string | null, message: string }
+    // Streams (SSE / chunked JSON) one event per agent step, then a final result:
+    //   { type: "step",   step: { agentId, agentName, status, details } }
+    //   { type: "result", message: CONVERSATION_TEMPLATE.messages[0] }
+    // Non-streaming fallback: POST ENDPOINTS.chat.messages(conversationId)
+    //   { text } -> ChatMessage (with .orchestration populated)
+    //
+    // const res = await apiFetch<typeof CONVERSATION_TEMPLATE.messages[0]>(
+    //   ENDPOINTS.chat.messages(convId), { method: "POST", body: JSON.stringify({ text }) });
+
     const cleanText = text.trim();
     if (!cleanText) return;
+
 
     let convId = activeConversationId;
     if (!convId) {
