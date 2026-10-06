@@ -1,141 +1,225 @@
-# 🧭 Career Compass
+# Career Compass
 
-Career Compass is a premium, AI multi-agent career platform designed to help job seekers navigate their career transition with maximum deliberation and clarity. By coordinating a pipeline of seven specialized AI agents, the platform refines your profile, tailors resumes to target specs in real-time, validates application readiness, maps out weekly roadmaps, and runs mock interview loops.
+Career Compass is an AI career platform. Seven specialist agents work as one pipeline: they find matching roles, tailor your resume, validate it for applicant-tracking systems, plan your roadmap, track your weekly progress, advise you, and run mock interviews.
 
----
+The repo has two separate apps:
 
-## 🌟 Key Features
+| | Folder | Stack | Runs on |
+| --- | --- | --- | --- |
+| **Frontend** | [`frontend/`](frontend/) | Next.js 16, React 19, TypeScript, Tailwind CSS 4 | http://localhost:3000 |
+| **Backend** | [`backend/`](backend/) | Python 3.11, FastAPI, SQLAlchemy 2 + Alembic, LangGraph | http://localhost:4000 |
 
-- **7-Agent Pipeline**:
-  1. **Resume Builder**: Generates tailored resume versions mapping to specific job specifications.
-  2. **Validation Agent**: Audits contacts, reverse-chronological order, and metrics.
-  3. **Job Search Agent**: Curates high-match openings based on user preferences.
-  4. **Productivity Agent**: Tracks application volumes, goals, and daily streak statistics.
-  5. **Roadmap Agent**: Designs multi-week milestone pathways for career growth.
-  6. **Career Advisor**: Offers targeted coaching suggestions and strategic action points.
-  7. **Interview Agent**: Prepares behavioural and system design interactive mock loops.
-
-- **Real-Time Tailored Resume Builder**:
-  - Direct CTA triggers transition from target job search match to the Resume Builder.
-  - Interactive **5-step live AI generation panel** with simulated progress stepper, live ATS score feedback (e.g. 82% to 96%), and log activity console stream.
-  - One-click "Save Tailored Resume to Profile" and "Export PDF".
-
-- **Monochrome & Minimalist Aesthetic**:
-  - Curated oklch colors utilizing the signature indigo-slate `--ink` accent.
-  - Clean typographic system combining the friendly, rounded **Comfortaa** font for UI body text with the script-like **Playwrite US Modern** font for headings, dashboard greetings, and brand wordmarks.
-  - Animated `.draw-icon` hover action on outline SVG components.
-  - Custom brand logo (Compass SVG mark) with interactive 360-degree needle rotation on hover.
-
-- **Dynamic Background Line Tracing**:
-  - Full-screen SVG canvas animation generating 52 custom linear-gradient lines sweeping diagonally from all 4 viewport edges.
-  - Solid card containers (`bg-background` and `bg-card`) ensure line animations remain clean and restricted strictly to negative background space.
-
-- **Centralized User Profile Context**:
-  - Context Provider synchronizing target salary, preferences, bio, goals, activities, and resume items in `localStorage`.
+> **Status:** the backend boilerplate is complete: auth, profile, chat, and all 7 agents with shared memory. The frontend screens still run on mock data (`localStorage`); connecting them to the API is the next step. See [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ---
 
-## 🛠️ Technology Stack
+## 1. Repository structure
 
-- **Framework**: TanStack Start (SSR + Client React, built on Vite and Nitro)
-- **Routing**: TanStack Router (fully type-safe, file-based routing)
-- **State**: React Context API (`UserProfileContext` with localStorage backup)
-- **Styling**: Tailwind CSS v4 + custom Vanilla CSS utilities
-- **Fonts**: Self-hosted variable TTF fonts (Comfortaa & Playwrite US Modern)
-- **Icons**: Lucide React wrapped in custom `OutlineIcon` components
-- **Dialogs & Overlays**: Radix UI Primitives
-
----
-
-## 📂 Directory Structure
-
-```
-career-compass-ui/
-├── public/
-│   ├── Comfortaa/                    # Self-hosted Comfortaa variable TTF font
-│   │   └── Comfortaa-VariableFont_wght.ttf
-│   ├── Playwrite_US_Modern/          # Self-hosted Playwrite US Modern variable TTF font
-│   │   └── PlaywriteUSModern-VariableFont_wght.ttf
-│   ├── favicon.ico
-│   └── robots.txt
-├── src/
-│   ├── components/
-│   │   ├── agents/
-│   │   │   └── AgentBody.tsx         # UIs for all 7 pipeline agents
-│   │   ├── ui/                       # Radix UI shadcn base primitives
-│   │   ├── AnimatedLines.tsx         # Shared full-screen SVG drifting lines component
-│   │   ├── AppShell.tsx              # Navigation header and viewport container
-│   │   ├── Chatbot.tsx               # Floating AI chatbot widget
-│   │   ├── LineButton.tsx            # Signature monochrome button
-│   │   └── OutlineIcon.tsx           # Animate-on-hover SVG icon wrapper
-│   ├── context/
-│   │   └── UserProfileContext.tsx    # Context Provider managing credentials, logs, and skills
-│   ├── lib/
-│   │   ├── agents.ts                 # Local configuration for 7 agents
-│   │   └── utils.ts                  # Tailwind class merge helper
-│   ├── routes/
-│   │   ├── __root.tsx                # Context provider wrapper and Toast container
-│   │   ├── index.tsx                 # Entry Sign-In/Up page with line drifting
-│   │   ├── setup.tsx                 # Onboarding setup wizard
-│   │   ├── dashboard.tsx             # Pipeline grid overview
-│   │   ├── agents.$agentId.tsx       # Main agent workspace route
-│   │   └── profile.tsx               # 6-tab profile details hub
-│   ├── routeTree.gen.ts              # Auto-generated route tree
-│   ├── router.tsx                    # Router bootstrap configuration
-│   ├── server.ts                     # SSR entrypoint
-│   ├── start.ts                      # Client hydration entrypoint
-│   └── styles.css                    # Design system tokens, @font-face rules, and utilities
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
+```text
+career-compass/
+├── frontend/                    # every frontend file
+│   ├── src/app/                 # pages (Next.js routes): metadata + one view each
+│   ├── src/views/               # page components
+│   ├── src/components/          # AppShell, agent UIs, shadcn primitives (ui/)
+│   ├── src/context/             # profile + chat state (localStorage until wired to the API)
+│   ├── src/lib/endpoints.ts     # ★ ALL FRONTEND ENDPOINTS: page routes + every backend API call
+│   ├── src/lib/api.ts           # fetch client + envelope types
+│   ├── src/lib/api-templates.ts # response shapes (incl. planned endpoints)
+│   ├── src/lib/schemas/         # form validation (mirrors backend rules)
+│   └── .env.example
+│
+├── backend/                     # every backend file
+│   ├── app/endpoints.py         # ★ ALL BACKEND ENDPOINTS: every route the API serves
+│   ├── app/main.py              # composition root: wires every module
+│   ├── app/core/                # config (.env), security, errors, logging, middleware
+│   ├── app/db/                  # SQLAlchemy engine + sessions (Neon / Supabase ready)
+│   ├── app/modules/             # auth/ profile/ chat/ health/ — router → service → repository → models
+│   ├── app/agents/              # one folder per agent (7) + registry.py
+│   ├── app/orchestrator/        # LangGraph state, reducers, planner, graph, SSE runner
+│   ├── app/memory/              # shared long-term memory + context builder
+│   ├── app/llm/                 # round-robin LLM gateway over your API keys
+│   ├── alembic/                 # database migrations
+│   ├── tests/                   # 45 tests
+│   └── .env.example
+│
+├── docs/
+│   ├── ARCHITECTURE.md          # design + implementation plan
+│   └── PROGRESS.md              # interim progress log
+├── docker-compose.yml           # optional local Postgres + pgvector
+└── package.json                 # root scripts (run both apps together)
 ```
 
----
-
-## 🧭 Application Routes
-
-| Route | File Path | Purpose |
-|---|---|---|
-| `/` | `src/routes/index.tsx` | Entry portal for authentication |
-| `/setup` | `src/routes/setup.tsx` | Multi-step onboarding setup |
-| `/dashboard` | `src/routes/dashboard.tsx` | Pipeline system board |
-| `/agents/$agentId` | `src/routes/agents.$agentId.tsx` | Workspace layout for each agent |
-| `/profile` | `src/routes/profile.tsx` | Profile information, goals, logs, and resumes |
+Deeper docs: [backend/README.md](backend/README.md) covers layers, auth, agents, memory, the LLM gateway and the database workflow. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the overall design.
 
 ---
 
-## 🎨 Design System & Animation Specifications
+## 2. Endpoints
 
-- **Typography**:
-  - Sans-Serif: `font-family: var(--font-sans)` (Comfortaa)
-  - Display Script: `font-family: var(--font-display)` (Playwrite US Modern)
-- **Keyframe Motions**:
-  - `rise-in`: Entry translate animation (`cubic-bezier(0.65, 0, 0.35, 1)`).
-  - `stroke-draw`: Inline path outline tracing for outline icons on hover.
-  - `compass-spin`: Complete rotation of compass needles on logo mouse-over.
-  - `animate-line`: SVG line sweep tracing using animated `stroke-dasharray` and opacity pulses.
+Each side has **one file** that lists every endpoint it owns.
+
+| File | Lists | Kept honest by |
+| --- | --- | --- |
+| [`frontend/src/lib/endpoints.ts`](frontend/src/lib/endpoints.ts) | `PAGE_ROUTES` (the app's pages) and `API_ENDPOINTS` (every backend call, marked `[live]` or `[planned]`) | the TypeScript compiler |
+| [`backend/app/endpoints.py`](backend/app/endpoints.py) | Every route the API serves, with method, auth and purpose. Routers import their paths from here | a test that fails if the file and the running app ever differ |
+
+### Frontend pages
+
+| Route | Page |
+| --- | --- |
+| `/` | Sign in / sign up |
+| `/setup` | Onboarding wizard |
+| `/dashboard` | Agent pipeline + orchestrator chat |
+| `/profile` | Profile hub |
+| `/agents/[agentId]` | One agent's workspace (7 agents) |
+
+### Backend API (live)
+
+All paths start with `/api`. Interactive docs: **http://localhost:4000/api/docs**.
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| GET | `/health` | public | Liveness, database, LLM key pool health |
+| POST | `/auth/sign-up` | public | Create account → access token + refresh cookie |
+| POST | `/auth/sign-in` | public | Sign in → access token + refresh cookie |
+| POST | `/auth/refresh` | refresh cookie | New access token; rotates the cookie |
+| POST | `/auth/sign-out` | refresh cookie | End this session |
+| GET | `/auth/session` | bearer | The signed-in user |
+| GET / PATCH | `/profile` | bearer | Read / update the career profile |
+| GET | `/agents` | bearer | Agent catalogue |
+| GET / POST | `/chat/conversations` | bearer | List / start conversations |
+| GET | `/chat/conversations/{id}` | bearer | One conversation with messages |
+| POST | `/chat/orchestrate` | bearer | Run the agents; **streams** progress (Server-Sent Events) |
+
+Planned endpoints (resume upload, jobs, activity, onboarding) are listed in `frontend/src/lib/endpoints.ts`, with their response shapes in `api-templates.ts`.
+
+Every response uses one envelope:
+
+```json
+{ "success": true, "data": { }, "error": null, "meta": { "requestId": "…" } }
+```
 
 ---
 
-## 🚀 Getting Started
+## 3. One-time setup
 
-To install dependencies and start the local development server:
+**Prerequisites:**
+- [Node.js](https://nodejs.org) 22+
+- [uv](https://docs.astral.sh/uv/) (installs and manages Python 3.11 for you)
 
 ```bash
-# Install package dependencies
+git clone https://github.com/KavimugilRajasekar/career-compass-ui.git
+cd career-compass-ui
+
+# Frontend dependencies (from the repo root)
 npm install
 
-# Start Vite dev server
-npm run dev
+# Backend dependencies (creates backend/.venv)
+cd backend && uv sync && cd ..
 
-# Build production bundle (SSR client & server worker)
-npm run build
+# Environment files — both are git-ignored; never commit them
+cp frontend/.env.example frontend/.env.local
+cp backend/.env.example backend/.env
+```
 
-# Preview build locally
-npm run preview
+Then edit `backend/.env`:
+
+| Setting | What to do |
+| --- | --- |
+| `JWT_SECRET` | Generate one: `cd backend && uv run python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `GROQ_API_KEYS` | Optional. Comma-separated Groq keys (`gsk_a,gsk_b`). Without keys, the agents use offline fallbacks |
+| `DATABASE_URL` | Leave the SQLite default for local work. For Neon or Supabase, see section 6 |
+
+---
+
+## 4. Daily workflow
+
+```bash
+npm run dev          # frontend :3000 + backend :4000 together
+npm run dev:web      # frontend only
+npm run dev:api      # backend only (auto-reload)
+```
+
+**Before you commit, run the checks:**
+
+| Check | Command |
+| --- | --- |
+| Frontend types | `npm run typecheck` |
+| Frontend lint | `npm run lint` |
+| Backend tests | `npm test` (or `cd backend && uv run pytest`) |
+| Backend lint + format | `cd backend && uv run ruff check . && uv run ruff format --check .` |
+| Backend types | `cd backend && uv run mypy app tests` |
+| Backend architecture rules | `cd backend && uv run lint-imports` |
+| Frontend production build | `npm run build` |
+
+### How a request flows
+
+```text
+Browser (frontend :3000)
+  │  fetch(API_ENDPOINTS.chat.orchestrate)  + Authorization: Bearer <token>
+  ▼
+backend :4000  app/modules/chat/router.py         HTTP layer
+  ▼
+               app/modules/chat/service.py        save message, load profile + history
+  ▼
+               app/orchestrator (LangGraph)       supervisor plans → agents run in stages
+  │              each agent: app/agents/<name>/   reads shared state, calls LLM gateway
+  │              memory: app/memory/              recall + save long-term facts
+  ▼
+  SSE stream back to the browser: plan → step (running/completed) → answer → memory → done
 ```
 
 ---
 
-> [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting published git history (force pushing, rebasing, or amending commits) as it syncs back to Lovable and can disrupt project history. Keep the branch in a working state.
+## 5. How to add things
+
+### A new page (frontend)
+1. Add `frontend/src/app/<route>/page.tsx` (metadata) and a view in `frontend/src/views/`.
+2. Add the route to `PAGE_ROUTES` in `frontend/src/lib/endpoints.ts`.
+
+### A new backend endpoint
+1. Add the path constant and an `Endpoint(...)` row to `backend/app/endpoints.py`.
+2. Implement it in the module's layers: `router.py` (HTTP) → `service.py` (rules) → `repository.py` (SQL).
+3. Protect it by adding `user_id: CurrentUserId` to the route's parameters.
+4. Add or update the entry in `frontend/src/lib/endpoints.ts` and mark it `[live]`.
+5. Run `uv run pytest`. The endpoints test fails if steps 1 and 2 disagree.
+
+### A new backend module
+1. Create `backend/app/modules/<name>/` with `router.py`, `dependencies.py`, `service.py`, `repository.py`, `models.py`, `schemas.py` and `__init__.py`.
+2. Register the router in `app/main.py` and the models in `app/model_registry.py`.
+3. Create the migration: `cd backend && uv run alembic revision --autogenerate -m "add <name>"`. Review the generated file, then commit it.
+4. Add the module to the layers rule in `pyproject.toml` (`[tool.importlinter]`).
+
+### A new agent
+1. Copy any folder in `backend/app/agents/`.
+2. Edit its `schema.py`, `prompt.py` and `agent.py`. Keep a `_fallback` that works without an LLM.
+3. Add its `SPEC` to `app/agents/registry.py`. The planner, the graph and `/api/agents` pick it up automatically.
+
+---
+
+## 6. Database workflow
+
+| Stage | `DATABASE_URL` in `backend/.env` |
+| --- | --- |
+| Local (default) | `sqlite+aiosqlite:///./.data/dev.db`, created and migrated on start |
+| Local Postgres | `docker compose up -d db`, then `postgresql://career:career@localhost:5432/career_compass` |
+| Neon | Paste the **pooled** URL; set `DB_PGBOUNCER=true` and `DATABASE_DIRECT_URL` = the non-pooler URL |
+| Supabase | Paste the **pooler** URL (port 6543); set `DB_PGBOUNCER=true` and `DATABASE_DIRECT_URL` = the port 5432 URL |
+
+To change the schema:
+1. Edit `models.py`.
+2. Run `uv run alembic revision --autogenerate -m "…"`.
+3. Commit the migration.
+4. In production, run `uv run alembic upgrade head` before starting the new version, with `DB_AUTO_MIGRATE=false`.
+
+---
+
+## 7. Git workflow
+
+| Branch | Purpose |
+| --- | --- |
+| `main` | Connected to Lovable; still the original single-app frontend |
+| `backend-boiler-template` | This layout: Next.js frontend + FastAPI backend boilerplate |
+
+- Branch from `backend-boiler-template` for new work, run the checks in section 4, then open a pull request.
+- **Never commit** `.env` files. They're git-ignored, and only the `*.example` templates are tracked.
+- **Lovable:** `main` is synced with [Lovable](https://lovable.dev). Lovable can't edit this Next.js + FastAPI layout, so merging into `main` ends Lovable editing for this project. Don't force-push or rewrite pushed history on `main`.
