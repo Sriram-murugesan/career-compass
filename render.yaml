@@ -1,0 +1,49 @@
+# Render Blueprint for the FastAPI backend (Render dashboard → New → Blueprint).
+# Optional extras can be added later under the service's Environment tab:
+#   GROQ_API_KEYS, OPENROUTER_SITE_URL, ADZUNA_APP_ID, ADZUNA_APP_KEY
+# Values marked `sync: false` are secrets or per-deployment URLs: Render asks for them
+# when the Blueprint is created; they are never stored in this file.
+services:
+  - type: web
+    name: career-compass-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    region: singapore # same region as the Neon database (ap-southeast-1)
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    # --proxy-headers: behind Render's (and Vercel's) proxy, use the real client IP for
+    # per-IP auth rate limits and the original https scheme.
+    startCommand: .venv/bin/uvicorn app.main:create_app --factory --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: JWT_SECRET
+        generateValue: true # random 256-bit secret, generated once by Render
+      # Neon: pooled URL (host contains "-pooler") for the app, direct URL for migrations
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_DIRECT_URL
+        sync: false
+      - key: DB_PGBOUNCER
+        value: "true"
+      - key: DB_AUTO_MIGRATE
+        value: "true" # applies Alembic migrations on startup (single instance)
+      # The Vercel site, e.g. https://career-compass.vercel.app (comma-separate several)
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GOOGLE_CLIENT_IDS
+        sync: false
+      - key: OPENROUTER_API_KEYS
+        sync: false
+      - key: JOB_BOARDS
+        value: jobicy,remotive
+      - key: JOBS_COUNTRY
+        value: in
+      - key: GRAPH_MIN_USERS
+        value: "3"

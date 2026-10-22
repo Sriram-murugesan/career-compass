@@ -230,6 +230,10 @@ To change the schema:
 
 ---
 
+## Deployment
+
+Vercel (frontend) + Render (backend) + Neon: step by step, with every environment variable, in [docs/DEPLOY.md](docs/DEPLOY.md). The Render service is defined in [`render.yaml`](render.yaml).
+
 ## 7. Git workflow
 
 | Branch | Purpose |
