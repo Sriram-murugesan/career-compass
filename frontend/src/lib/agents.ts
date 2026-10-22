@@ -10,79 +10,97 @@ import {
 } from "lucide-react";
 
 export type Agent = {
+  /** Frontend route id: /agents/<id> */
   id: string;
+  /** The backend agent id (backend/app/agents/registry.py) */
+  backendId: string;
   name: string;
   short: string;
-  status: string;
   phase: "foundation" | "growth";
   icon: LucideIcon;
   summary: string;
+  /** What the "Run" button asks for when the user types nothing. */
+  defaultRequest: string;
 };
 
 export const agents: Agent[] = [
   {
     id: "resume",
+    backendId: "resume",
     name: "Resume Agent",
     short: "Resume",
-    status: "Resume ready · v4",
     phase: "foundation",
     icon: FileText,
-    summary: "Drafts and maintains an ATS-friendly resume from your profile.",
+    summary: "Drafts an ATS-friendly resume from your profile, tailored to a target role.",
+    defaultRequest: "Draft a resume tailored to my target role.",
   },
   {
     id: "validation",
+    backendId: "validation",
     name: "Validation Agent",
     short: "Validation",
-    status: "2 items to review",
     phase: "foundation",
     icon: ShieldCheck,
-    summary: "Audits structure, keywords and formatting before you apply.",
+    summary: "Audits a resume draft for structure, keywords and impact before you apply.",
+    defaultRequest: "Draft my resume and check it for ATS readiness.",
   },
   {
     id: "job-search",
+    backendId: "job_search",
     name: "Job Search Agent",
     short: "Job Search",
-    status: "3 new matches",
     phase: "foundation",
     icon: Search,
-    summary: "Surfaces roles aligned to your skills, interests and goals.",
+    summary:
+      "Searches live job postings and ranks them against your skills, goals and preferences.",
+    defaultRequest: "Find open roles that fit my profile.",
   },
   {
     id: "productivity",
+    backendId: "productivity",
     name: "Productivity Tracker",
     short: "Tracker",
-    status: "9-day streak",
     phase: "foundation",
     icon: Activity,
-    summary: "Tracks applications, practice sessions and weekly momentum.",
+    summary:
+      "Track daily habits (gym, cardio, learning) with streaks, linked to your mock-test scores.",
+    defaultRequest: "Plan my focus and actions for this week.",
   },
   {
     id: "roadmap",
+    backendId: "roadmap",
     name: "Personalized Roadmap",
     short: "Roadmap",
-    status: "Updated 2d ago",
     phase: "growth",
     icon: RouteIcon,
-    summary: "Sequences the skills and milestones between here and the goal.",
+    summary: "Sequences the skills and milestones between where you are and your goal.",
+    defaultRequest: "Build a milestone roadmap to my goal.",
   },
   {
     id: "advisor",
+    backendId: "advisor",
     name: "Career Advisor",
     short: "Advisor",
-    status: "4 recommendations",
     phase: "growth",
     icon: Compass,
-    summary: "Explains trade-offs and suggests the next deliberate move.",
+    summary: "Answers career questions and suggests the next deliberate move.",
+    defaultRequest: "What should my next career move be?",
   },
   {
     id: "interview",
+    backendId: "interview",
     name: "Interview Preparation",
     short: "Interview",
-    status: "12 of 30 questions",
     phase: "growth",
     icon: MessagesSquare,
-    summary: "Runs mock interviews and grades your answers over time.",
+    summary:
+      "Mock tests for your target role and domain, scored instantly, plus practice questions.",
+    defaultRequest: "Give me practice interview questions for my target role.",
   },
 ];
 
 export const getAgent = (id: string) => agents.find((a) => a.id === id);
+
+/** Look up by the backend's id ("job_search") — used when rendering agent runs. */
+export const getAgentByBackendId = (backendId: string) =>
+  agents.find((a) => a.backendId === backendId);

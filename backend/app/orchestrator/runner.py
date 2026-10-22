@@ -51,6 +51,7 @@ class Orchestrator:
         request: str,
         profile: dict[str, Any],
         history: list[dict[str, str]],
+        agents: list[str] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         run_id = str(uuid.uuid4())
         config: RunnableConfig = {"configurable": {"thread_id": str(conversation_id)}}
@@ -60,6 +61,7 @@ class Orchestrator:
             "request": request,
             "profile": profile,
             "history": history,
+            "requested_agents": list(agents or []),  # always set: never inherit last turn's
         }
         modes: list[StreamMode] = ["custom", "updates"]
 

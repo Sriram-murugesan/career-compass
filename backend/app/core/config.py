@@ -50,19 +50,53 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = Field(default=30, ge=1, le=90)
     cookie_secure: bool | None = None  # defaults to True in production
     auth_rate_limit_per_minute: int = Field(default=10, ge=1)
+    # Google sign-in: OAuth "Web application" Client ID(s) from Google Cloud Console.
+    # Not a secret — used to check the ID token was issued for THIS app. Empty = Google off.
+    google_client_ids: Annotated[list[str], NoDecode] = []
 
-    # ── LLM gateway (round robin over every key) ────────────────────────────
+    # ── LLM gateway (round robin over every key of every provider) ──────────
+    # Groq
     groq_api_keys: Annotated[list[SecretStr], NoDecode] = []
     groq_base_url: str = "https://api.groq.com/openai/v1"
-    llm_model_large: str = "openai/gpt-oss-120b"
+    llm_model_large: str = "openai/gpt-oss-120b"  # Groq model ids
     llm_model_fast: str = "openai/gpt-oss-20b"
+    # OpenRouter (OpenAI-compatible; model ids from openrouter.ai/models)
+    openrouter_api_keys: Annotated[list[SecretStr], NoDecode] = []
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model_large: str = "openai/gpt-oss-120b"
+    openrouter_model_fast: str = "openai/gpt-oss-20b"
+    # Optional attribution headers OpenRouter shows in its dashboard and rankings.
+    openrouter_site_url: str | None = None
+    openrouter_app_name: str = "Career Compass"
     llm_timeout_seconds: float = Field(default=30.0, gt=0)
+
+    # ── Live job listings (Job Search agent) ────────────────────────────────
+    # Free, keyless remote-job APIs to search (comma-separated; empty = none).
+    job_boards: Annotated[list[Literal["jobicy", "remotive"]], NoDecode] = ["jobicy", "remotive"]
+    # Optional Adzuna developer keys (https://developer.adzuna.com, free tier) — adds
+    # local, city-level listings on top of the free boards.
+    adzuna_app_id: str = ""
+    adzuna_app_key: SecretStr = SecretStr("")
+    # Adzuna country code: in, gb, us, ca, au, de, fr, … (where to search)
+    jobs_country: str = Field(default="in", min_length=2, max_length=2)
+
+    # ── Shared knowledge graph ──────────────────────────────────────────────
+    # An edge built from user profiles is shown to others only when at least this many
+    # distinct users back it (edges backed by a real job posting are always shown).
+    graph_min_users: int = Field(default=3, ge=1)
 
     # ── Agent memory ────────────────────────────────────────────────────────
     memory_recall_limit: int = Field(default=5, ge=0, le=50)
     memory_context_budget_chars: int = Field(default=6000, ge=500)
 
-    @field_validator("cors_origins", "groq_api_keys", mode="before")
+    @field_validator(
+        "cors_origins",
+        "groq_api_keys",
+        "openrouter_api_keys",
+        "google_client_ids",
+        "job_boards",
+        mode="before",
+    )
     @classmethod
     def _csv(cls, value: object) -> object:
         return _split_csv(value)

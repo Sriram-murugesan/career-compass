@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { OutlineIcon } from "@/components/OutlineIcon";
-import { agents, type Agent } from "@/lib/agents";
+import { AgentOutput } from "@/components/agents/AgentOutput";
+import { agents, getAgentByBackendId, type Agent } from "@/lib/agents";
 import { useUserProfile } from "@/context/UserProfileContext";
 import { useChat } from "@/context/ChatContext";
 import {
@@ -32,7 +33,7 @@ import {
   MessagesSquare,
   Bot,
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +52,7 @@ function AgentCard({ agent, index }: { agent: Agent; index: number }) {
       </div>
       <div className="mt-8">
         <h3 className="text-sm font-medium">{agent.name}</h3>
-        <p className="mt-1 text-xs text-muted-foreground">{agent.status}</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{agent.summary}</p>
       </div>
     </Link>
   );
@@ -78,11 +79,13 @@ export function Dashboard() {
 
   const foundation = agents.filter((a) => a.phase === "foundation");
   const growth = agents.filter((a) => a.phase === "growth");
-  const firstName = profile.name ? profile.name.split(" ")[0] : "Ada";
+  const firstName = profile.name ? profile.name.split(" ")[0] : "there";
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   // Auto scroll chat to bottom when messages or orchestration changes
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
-  const messages = activeConversation?.messages || [];
+  const messages = useMemo(() => activeConversation?.messages ?? [], [activeConversation]);
 
   useEffect(() => {
     if (isChatActive) {
@@ -104,26 +107,26 @@ export function Dashboard() {
     sendMessage(text);
   };
 
-  const handleTailorResume = (job: any) => {
+  const handleTailorResume = (job: { role: string; company: string; location: string }) => {
     logActivity({
       type: "job_searched",
-      title: `Selected role: ${job.role} at ${job.co}`,
-      details: `Match score ${job.match}%. Initiating tailored resume generation.`,
-      targetCompany: job.co,
+      title: `Picked ${job.role} at ${job.company}`,
+      details: "Opening the Resume Agent to tailor a draft.",
+      targetCompany: job.company,
     });
-    toast.info(`Selected ${job.co}! Transferring specs to Resume Agent...`);
-    const search = new URLSearchParams({ jobRole: job.role, company: job.co, loc: job.loc });
+    const search = new URLSearchParams({
+      jobRole: job.role,
+      company: job.company,
+      loc: job.location,
+    });
     router.push(`/agents/resume?${search}`);
   };
 
   // Determine which agent is currently executing based on active orchestration step
-  const activeOrchestrationMessage = messages.find(
-    (m) => m.isOrchestration && m.orchestration && !m.orchestration.isComplete,
+  const activeRun = messages.find((m) => m.run && !m.run.isComplete)?.run;
+  const runningBackendIds = new Set(
+    activeRun?.steps.filter((s) => s.status === "running").map((s) => s.agentId) ?? [],
   );
-  const currentRunningAgentId =
-    activeOrchestrationMessage?.orchestration?.steps[
-      activeOrchestrationMessage.orchestration.activeStepIndex
-    ]?.agentId;
 
   return (
     <AppShell>
@@ -147,11 +150,23 @@ export function Dashboard() {
                   className="mt-3 text-2xl font-medium tracking-tight animate-in fade-in slide-in-from-top-3 duration-500"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
-                  Good afternoon, {firstName}
+                  {greeting}, {firstName}
                 </h1>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground animate-in fade-in duration-700">
-                  Your pipeline runs left to right. Tailored for your profile as a{" "}
-                  <span className="font-medium text-foreground">{profile.title}</span>.
+                  Your pipeline runs left to right.{" "}
+                  {profile.title ? (
+                    <>
+                      Tailored for your profile as{" "}
+                      <span className="font-medium text-foreground">{profile.title}</span>.
+                    </>
+                  ) : (
+                    <>
+                      <Link href="/profile" className="text-ink underline underline-offset-4">
+                        Add your headline and skills
+                      </Link>{" "}
+                      so the agents can tailor their work to you.
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -168,7 +183,7 @@ export function Dashboard() {
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    {profile.skills.length} skills · {profile.resume?.atsScore}% ATS score
+                    {profile.skills.length} skills · {profile.targetRoles.length} target roles
                   </p>
                 </div>
                 <ArrowRight
@@ -291,12 +306,12 @@ export function Dashboard() {
 
                 <div className="ml-auto hidden items-center gap-2 lg:flex">
                   {agents.map((a) => {
-                    const isRunning = currentRunningAgentId === a.id;
+                    const isRunning = runningBackendIds.has(a.backendId);
                     return (
                       <Link
                         key={a.id}
                         href={`/agents/${a.id}`}
-                        title={`${a.name} · ${a.status}`}
+                        title={a.name}
                         className={cn(
                           "relative flex h-7 w-7 items-center justify-center rounded-full border transition-all duration-300 hover:border-ink",
                           isRunning
@@ -343,10 +358,10 @@ export function Dashboard() {
                       {/* Suggestions list */}
                       <div className="w-full grid gap-2 sm:grid-cols-2 pt-2">
                         {[
-                          "Find me a Senior Frontend Developer job in London",
-                          "Can you check my resume formatting audits?",
-                          "Create a milestone roadmap to lead an AI team",
-                          "Run an interview prep session for system design",
+                          "Find roles that fit my profile",
+                          "Draft my resume and check it for ATS readiness",
+                          "Build a milestone roadmap to my goal",
+                          "Give me practice interview questions",
                         ].map((sug) => (
                           <button
                             key={sug}
@@ -374,7 +389,11 @@ export function Dashboard() {
                         >
                           {/* Sender badge */}
                           <span className="text-[10px] text-muted-foreground mb-1 tabular-nums px-1">
-                            {isUser ? "You" : "Compass Assistant"} · {m.timestamp}
+                            {isUser ? "You" : "Compass Assistant"} ·{" "}
+                            {new Date(m.timestamp).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </span>
 
                           <div
@@ -385,230 +404,105 @@ export function Dashboard() {
                                 : "w-full text-foreground",
                             )}
                           >
-                            <p className="whitespace-pre-line leading-relaxed font-medium">
-                              {m.text}
-                            </p>
+                            {m.text ? (
+                              <p className="whitespace-pre-line leading-relaxed font-medium">
+                                {m.text}
+                              </p>
+                            ) : null}
 
-                            {/* Orchestration display (Intent Router Pipeline) */}
-                            {!isUser && m.isOrchestration && m.orchestration && (
+                            {/* Real agent run: plan, live progress, then each agent's output */}
+                            {!isUser && m.run && (
                               <div className="border border-border rounded-lg bg-background/40 p-4 space-y-4 mt-3">
-                                {/* Header */}
                                 <div className="flex items-center justify-between border-b border-border pb-2.5">
                                   <div className="flex items-center gap-2">
                                     <Loader2
                                       size={13}
                                       className={cn(
                                         "text-ink",
-                                        !m.orchestration.isComplete && "animate-spin",
+                                        !m.run.isComplete && "animate-spin",
                                       )}
                                     />
                                     <span className="text-[11px] font-semibold tracking-wide text-foreground">
-                                      Intent Router Orchestrator
+                                      Agent orchestrator
                                     </span>
                                   </div>
                                   <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">
-                                    {m.orchestration.isComplete ? "Executed" : "Processing"}
+                                    {m.run.error
+                                      ? "Failed"
+                                      : m.run.isComplete
+                                        ? "Done"
+                                        : m.run.steps.length
+                                          ? "Running"
+                                          : "Planning"}
                                   </span>
                                 </div>
 
-                                {/* Orchestration Steps list with connecting dotted lines */}
-                                <div className="relative pl-4 space-y-3">
-                                  {/* Connector Line */}
-                                  <div className="absolute left-[9px] top-2 bottom-2 w-[1px] bg-border-strong border-dashed border-l" />
-
-                                  {m.orchestration.steps.map((step, idx) => {
-                                    const isDone = step.status === "completed";
-                                    const isRunning = step.status === "running";
-                                    return (
-                                      <div
-                                        key={step.agentId}
-                                        className={cn(
-                                          "relative flex items-start gap-3 text-[11px] transition-all duration-300",
-                                          isRunning ? "text-ink" : "text-muted-foreground",
-                                        )}
-                                      >
-                                        {/* Status Dot */}
-                                        <span className="absolute -left-[12px] top-1 flex h-2 w-2 rounded-full border bg-background items-center justify-center">
-                                          {isDone ? (
-                                            <span className="h-1.5 w-1.5 rounded-full bg-foreground" />
-                                          ) : isRunning ? (
-                                            <span className="h-1.5 w-1.5 rounded-full bg-ink animate-ping" />
-                                          ) : (
-                                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
+                                {m.run.steps.length > 0 && (
+                                  <div className="relative pl-4 space-y-3">
+                                    <div className="absolute left-[9px] top-2 bottom-2 w-[1px] bg-border-strong border-dashed border-l" />
+                                    {m.run.steps.map((step) => {
+                                      const isDone = step.status === "completed";
+                                      const isRunning = step.status === "running";
+                                      return (
+                                        <div
+                                          key={step.agentId}
+                                          className={cn(
+                                            "relative flex items-start gap-3 text-[11px] transition-all duration-300",
+                                            isRunning ? "text-ink" : "text-muted-foreground",
                                           )}
-                                        </span>
-
-                                        <div className="pl-3 flex-1">
-                                          <p
-                                            className={cn(
-                                              "font-semibold",
-                                              isRunning ? "text-ink" : "text-foreground",
+                                        >
+                                          <span className="absolute -left-[12px] top-1 flex h-2 w-2 rounded-full border bg-background items-center justify-center">
+                                            {isDone ? (
+                                              <span className="h-1.5 w-1.5 rounded-full bg-foreground" />
+                                            ) : isRunning ? (
+                                              <span className="h-1.5 w-1.5 rounded-full bg-ink animate-ping" />
+                                            ) : step.status === "failed" ? (
+                                              <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                                            ) : (
+                                              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
                                             )}
-                                          >
-                                            {step.agentName}
-                                          </p>
-                                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                                            {step.details}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-
-                                {/* Orchestration output data renderer */}
-                                {m.orchestration.isComplete && m.orchestration.resultData && (
-                                  <div className="border-t border-border pt-4 animate-in fade-in slide-in-from-top-2 duration-500">
-                                    {/* 1. Job search output display */}
-                                    {m.orchestration.resultType === "jobs" && (
-                                      <div className="space-y-3">
-                                        <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block">
-                                          Discovered Roles (Job Search Agent)
-                                        </span>
-                                        <div className="grid gap-3">
-                                          {m.orchestration.resultData.map((job: any) => (
-                                            <div
-                                              key={job.id}
-                                              className="rounded-md border border-border bg-card p-4 flex flex-col justify-between sm:flex-row sm:items-start gap-3 hover:border-ink hover:shadow-2xs transition-all duration-300"
+                                          </span>
+                                          <div className="pl-3 flex-1">
+                                            <p
+                                              className={cn(
+                                                "font-semibold",
+                                                isRunning ? "text-ink" : "text-foreground",
+                                              )}
                                             >
-                                              <div>
-                                                <div className="flex items-center gap-2">
-                                                  <h4 className="text-xs font-semibold">
-                                                    {job.role}
-                                                  </h4>
-                                                  <span className="text-[10px] text-ink font-semibold bg-accent/5 px-2 py-0.5 rounded-full">
-                                                    {job.match}% match
-                                                  </span>
-                                                </div>
-                                                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] text-muted-foreground">
-                                                  <span className="font-medium text-foreground flex items-center gap-1">
-                                                    <Building2 size={11} /> {job.co}
-                                                  </span>
-                                                  <span className="flex items-center gap-1">
-                                                    <MapPin size={11} /> {job.loc}
-                                                  </span>
-                                                  <span className="flex items-center gap-1">
-                                                    <Clock3 size={11} /> {job.type}
-                                                  </span>
-                                                </div>
-                                                <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-                                                  {job.desc}
-                                                </p>
-                                              </div>
-                                              <LineButton
-                                                variant="solid"
-                                                onClick={() => handleTailorResume(job)}
-                                                className="text-[10px] py-1 px-3 self-end sm:self-start gap-1 font-semibold whitespace-nowrap shrink-0 animate-in fade-in"
-                                              >
-                                                <Sparkles size={11} /> Tailor Resume
-                                              </LineButton>
-                                            </div>
-                                          ))}
+                                              {step.agentName}
+                                            </p>
+                                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                                              {step.summary ??
+                                                (isRunning
+                                                  ? "Working…"
+                                                  : step.status === "pending"
+                                                    ? "Queued"
+                                                    : "")}
+                                            </p>
+                                          </div>
                                         </div>
-                                      </div>
-                                    )}
-
-                                    {/* 2. Resume validation outputs */}
-                                    {m.orchestration.resultType === "validation" && (
-                                      <div className="space-y-3">
-                                        <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block">
-                                          Resume compliance check (Validation Agent)
-                                        </span>
-                                        <div className="rounded-md border border-border bg-card divide-y divide-border text-[11px]">
-                                          {m.orchestration.resultData.map((check: any) => (
-                                            <div
-                                              key={check.label}
-                                              className="p-3 flex items-center justify-between gap-4"
-                                            >
-                                              <div>
-                                                <p className="font-medium text-foreground">
-                                                  {check.label}
-                                                </p>
-                                                <p className="text-[10px] text-muted-foreground mt-0.5">
-                                                  {check.note}
-                                                </p>
-                                              </div>
-                                              <span
-                                                className={cn(
-                                                  "text-[10px] px-2 py-0.5 rounded-full font-semibold",
-                                                  check.state === "pass"
-                                                    ? "text-foreground bg-secondary"
-                                                    : "text-ink bg-accent/5 border border-ink/20",
-                                                )}
-                                              >
-                                                {check.state === "pass" ? "Passed" : "Warning"}
-                                              </span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* 3. Milestones Roadmap trajectory */}
-                                    {m.orchestration.resultType === "roadmap" && (
-                                      <div className="space-y-3">
-                                        <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block">
-                                          Suggested trajectory (Roadmap Agent)
-                                        </span>
-                                        <div className="relative pl-6 space-y-4">
-                                          <div className="absolute left-[7px] top-1 bottom-1 w-[1px] bg-border-strong border-dashed border-l" />
-                                          {m.orchestration.resultData.map(
-                                            (item: any, i: number) => (
-                                              <div key={item.title} className="relative">
-                                                <span className="absolute -left-[23px] top-1 h-3.5 w-3.5 rounded-full border border-ink bg-background flex items-center justify-center text-[8px] font-bold text-ink">
-                                                  {i + 1}
-                                                </span>
-                                                <div>
-                                                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground">
-                                                    {item.when}
-                                                  </span>
-                                                  <h4 className="text-xs font-semibold text-foreground mt-0.5">
-                                                    {item.title}
-                                                  </h4>
-                                                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                                                    {item.note}
-                                                  </p>
-                                                </div>
-                                              </div>
-                                            ),
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* 4. Mock Interview start questions */}
-                                    {m.orchestration.resultType === "interview" && (
-                                      <div className="space-y-3">
-                                        <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground block">
-                                          Generated Practice questions (Interview Agent)
-                                        </span>
-                                        <div className="rounded-md border border-border bg-card divide-y divide-border text-[11px]">
-                                          {m.orchestration.resultData.map(
-                                            (q: string, idx: number) => (
-                                              <div key={idx} className="p-3 flex items-start gap-3">
-                                                <span className="text-muted-foreground font-semibold tabular-nums mt-0.5">
-                                                  {String(idx + 1).padStart(2, "0")}
-                                                </span>
-                                                <p className="flex-1 text-foreground leading-normal">
-                                                  {q}
-                                                </p>
-                                              </div>
-                                            ),
-                                          )}
-                                        </div>
-                                        <div className="pt-2">
-                                          <Link
-                                            href="/agents/interview"
-                                            className="inline-flex w-full justify-center items-center gap-2 rounded-md border border-border py-2 text-xs font-semibold hover:border-ink hover:text-ink transition-all duration-300 bg-card"
-                                          >
-                                            <Play size={12} fill="currentColor" />
-                                            Go to Mock Interview workspace
-                                          </Link>
-                                        </div>
-                                      </div>
-                                    )}
+                                      );
+                                    })}
                                   </div>
                                 )}
+
+                                {m.run.error && (
+                                  <p className="text-[11px] text-destructive">{m.run.error}</p>
+                                )}
+
+                                {m.run.isComplete &&
+                                  Object.entries(m.run.agentOutputs).map(([agentId, output]) => (
+                                    <div
+                                      key={agentId}
+                                      className="border-t border-border pt-4 animate-in fade-in slide-in-from-top-2 duration-500"
+                                    >
+                                      <AgentOutput
+                                        agentId={agentId}
+                                        output={output}
+                                        onTailor={handleTailorResume}
+                                      />
+                                    </div>
+                                  ))}
                               </div>
                             )}
                           </div>

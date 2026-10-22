@@ -43,8 +43,13 @@ async def test_sign_up_returns_session_and_httponly_cookie(harness: Harness) -> 
         "name": "Ada Lovelace",
         "email": "ada@example.com",  # normalised to lower case
         "isOnboarded": False,
+        "avatarUrl": None,
+        "hasPassword": True,
+        "googleLinked": False,
     }
-    assert "password" not in response.text.lower()
+    # Never leak the hash (or its field): Argon2 hashes all start with "$argon2".
+    assert "$argon2" not in response.text
+    assert "passwordhash" not in response.text.lower().replace("_", "")
 
     set_cookie = response.headers["set-cookie"].lower()
     assert (

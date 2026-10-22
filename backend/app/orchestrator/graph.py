@@ -5,7 +5,7 @@
                                          └───────┼──────────────────────────────┘
                                                  └─► respond → save_memory → END
 
-Dependencies (LLM gateway, memory store, context builder) arrive through the
+Dependencies (LLM gateway, memory store, knowledge graph, context builder) arrive through the
 LangGraph runtime context, so the graph imports no infrastructure and is
 easy to test with fakes.
 """
@@ -22,7 +22,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
 
-from app.agents.base import AgentSpec, LlmClient
+from app.agents.base import AgentSpec, JobBoard, LlmClient
+from app.knowledge.types import KnowledgeGraph
 from app.memory.context import ContextBuilder
 from app.memory.store import MemoryStore, NewMemory
 from app.orchestrator.planner import make_plan
@@ -41,6 +42,8 @@ class OrchestratorDeps:
     context_builder: ContextBuilder
     registry: dict[str, AgentSpec]
     memory_recall_limit: int = 5
+    job_board: JobBoard | None = None  # live listings for the Job Search agent
+    knowledge: KnowledgeGraph | None = None  # shared career graph (read + learn from postings)
 
 
 def _finished_this_run(state: CareerState) -> set[str]:
@@ -60,15 +63,22 @@ def route(state: CareerState) -> list[str] | str:
 
 async def load_memory(state: CareerState, runtime: Runtime[OrchestratorDeps]) -> dict[str, Any]:
     deps = runtime.context
-    memories = await deps.memory.recall(
-        uuid.UUID(state["user_id"]), state["request"], deps.memory_recall_limit
-    )
-    return {"memories": memories}
+    user_id = uuid.UUID(state["user_id"])
+    memories = await deps.memory.recall(user_id, state["request"], deps.memory_recall_limit)
+    insights = ""
+    if deps.knowledge is not None:
+        try:
+            insights = await deps.knowledge.insights_text(user_id, state.get("profile", {}))
+        except Exception:  # the graph enriches answers; it must never block a run
+            logger.exception("knowledge graph insights failed")
+    return {"memories": memories, "graph_insights": insights}
 
 
 async def supervisor(state: CareerState, runtime: Runtime[OrchestratorDeps]) -> dict[str, Any]:
     deps = runtime.context
-    plan = await make_plan(state["request"], deps.registry, deps.llm)
+    plan = await make_plan(
+        state["request"], deps.registry, deps.llm, state.get("requested_agents") or None
+    )
     runtime.stream_writer({"type": "plan", "plan": plan})
     return {"plan": plan}
 
@@ -85,9 +95,11 @@ def make_agent_node(spec: AgentSpec) -> Any:
             request=state["request"],
             profile=state.get("profile", {}),
             memories=state.get("memories", []),
+            graph_insights=state.get("graph_insights", ""),
             agent_outputs=state.get("agent_outputs", {}),
             history=state.get("history", []),
             llm=deps.llm,
+            job_board=deps.job_board,
         )
         try:
             result = await spec.run(context)
@@ -151,6 +163,14 @@ async def save_memory(state: CareerState, runtime: Runtime[OrchestratorDeps]) ->
     ]
     saved = await runtime.context.memory.remember(uuid.UUID(state["user_id"]), facts)
     runtime.stream_writer({"type": "memory", "saved": saved})
+
+    # Live postings found this run teach the shared graph (company → role → skills).
+    knowledge = runtime.context.knowledge
+    if knowledge is not None and "job_search" in _finished_this_run(state):
+        try:
+            await knowledge.record_postings(state.get("agent_outputs", {}).get("job_search", {}))
+        except Exception:
+            logger.exception("knowledge graph update failed")
     return {}
 
 

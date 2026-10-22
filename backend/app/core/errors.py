@@ -53,3 +53,8 @@ class Conflict(AppError):
 class RateLimited(AppError):
     status_code = 429
     code = "RATE_LIMITED"
+
+
+class Unavailable(AppError):
+    status_code = 503
+    code = "UNAVAILABLE"

@@ -57,9 +57,32 @@ def keyword_plan(request: str, registry: dict[str, AgentSpec]) -> list[str]:
     return chosen or ["advisor"]
 
 
+def with_dependencies(agent_ids: list[str], registry: dict[str, AgentSpec]) -> list[str]:
+    """The requested agents plus the agents they require, transitively."""
+    chosen: list[str] = []
+
+    def visit(agent_id: str) -> None:
+        if agent_id in chosen or agent_id not in registry:
+            return
+        for dependency in registry[agent_id].requires:
+            visit(dependency)
+        chosen.append(agent_id)
+
+    for agent_id in agent_ids:
+        visit(agent_id)
+    return chosen
+
+
 async def make_plan(
-    request: str, registry: dict[str, AgentSpec], llm: LlmClient
+    request: str,
+    registry: dict[str, AgentSpec],
+    llm: LlmClient,
+    requested_agents: list[str] | None = None,
 ) -> list[list[str]]:
+    # An explicit request (e.g. an agent's own page) skips planning; its inputs come along.
+    if requested_agents:
+        return order_into_stages(with_dependencies(requested_agents, registry), registry)
+
     agent_ids: list[str] = []
     if llm.available:
         catalogue = "\n".join(f"- {s.id}: {s.description}" for s in registry.values())

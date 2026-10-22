@@ -11,6 +11,7 @@ from typing import Literal
 
 from app.core import security
 from app.core.errors import Conflict, Unauthorized
+from app.modules.auth.google import GoogleIdentity
 from app.modules.auth.models import User
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import AuthSession, AuthUser, SignInRequest, SignUpRequest
@@ -49,8 +50,16 @@ def _invalid_credentials() -> Unauthorized:
 
 
 def to_auth_user(user: User) -> AuthUser:
-    """Public shape of a user — never includes the password hash."""
-    return AuthUser(id=user.id, name=user.name, email=user.email, is_onboarded=user.is_onboarded)
+    """Public shape of a user — never includes the password hash or Google id."""
+    return AuthUser(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        is_onboarded=user.is_onboarded,
+        avatar_url=user.avatar_url,
+        has_password=user.password_hash is not None,
+        google_linked=user.google_sub is not None,
+    )
 
 
 class AuthService:
@@ -68,12 +77,55 @@ class AuthService:
 
     async def sign_in(self, data: SignInRequest, client: ClientInfo) -> IssuedSession:
         user = await self.repository.find_user_by_email(data.email)
-        if user is None:
-            # Same work, same answer as a wrong password: no "this email exists" signal.
+        if user is None or user.password_hash is None:
+            # Same work, same answer as a wrong password: no "this email exists" signal,
+            # and no hint that an account signs in with Google only.
             security.burn_password_check(data.password)
             raise _invalid_credentials()
         if not security.verify_password(user.password_hash, data.password):
             raise _invalid_credentials()
+        return await self._start_session(user, uuid.uuid4(), client)
+
+    async def sign_in_with_google(
+        self, identity: GoogleIdentity, client: ClientInfo
+    ) -> IssuedSession:
+        """Sign in (or sign up) with a verified Google identity.
+
+        1. Known Google account (same `sub`)   → sign in.
+        2. Same email, not yet linked           → link Google to that account.
+           If the email was never verified, whoever set its password never proved
+           they own the address: drop that password and end its sessions, so a
+           pre-registered account can't be used to take over the real owner.
+        3. Unknown                              → create a verified, password-less account.
+        """
+        user = await self.repository.find_user_by_google_sub(identity.sub)
+        if user is None:
+            existing = await self.repository.find_user_by_email(identity.email)
+            if existing is not None:
+                if existing.google_sub is not None:
+                    # The email belongs to a different Google account — never merge two.
+                    raise Conflict(
+                        "This email is linked to another Google account", code="ACCOUNT_CONFLICT"
+                    )
+                untrusted = not existing.email_verified
+                if untrusted:
+                    await self.repository.revoke_all_sessions(existing.id)
+                user = await self.repository.link_google_account(
+                    existing,
+                    google_sub=identity.sub,
+                    avatar_url=identity.picture,
+                    drop_password=untrusted,
+                )
+            else:
+                user = await self.repository.create_user(
+                    name=identity.name,
+                    email=identity.email,
+                    google_sub=identity.sub,
+                    avatar_url=identity.picture,
+                    email_verified=True,
+                )
+                if user is None:  # lost a race with a concurrent sign-up for the same email
+                    raise Conflict("Please try signing in again", code="ACCOUNT_CONFLICT")
         return await self._start_session(user, uuid.uuid4(), client)
 
     async def refresh(self, raw_token: str | None, client: ClientInfo) -> IssuedSession:

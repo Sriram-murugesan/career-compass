@@ -67,5 +67,6 @@ SPEC = AgentSpec(
     description="Audits a resume draft for ATS readiness and lists what to fix.",
     run=run,
     reads=("resume",),
+    requires=("resume",),  # nothing to validate without a draft
     keywords=("validate", "validation", "check", "ats", "audit", "review"),
 )

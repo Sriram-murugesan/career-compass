@@ -21,11 +21,26 @@ REDACTED = "[REDACTED]"
 _SENSITIVE_KEYS = re.compile(
     r"pass(word)?|secret|token|authorization|cookie|api[-_]?key", re.IGNORECASE
 )
+# Token *counts* (LLM usage) are not secrets — keep them visible for cost tracking.
+_SAFE_KEYS = {"prompttokens", "completiontokens", "totaltokens", "maxtokens"}
+
+
+def _is_sensitive_key(key: object) -> bool:
+    name = str(key)
+    if name.replace("_", "").lower() in _SAFE_KEYS:
+        return False
+    return bool(_SENSITIVE_KEYS.search(name))
+
+
 _SENSITIVE_PATTERNS = [
     re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/-]+=*"),
     re.compile(r"\bgsk_[A-Za-z0-9]+"),  # Groq API keys
+    re.compile(r"\bsk-or-[A-Za-z0-9_-]+"),  # OpenRouter API keys
+    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}"),  # other OpenAI-style keys
+    re.compile(r"(?i)(postgres(?:ql)?(?:\+\w+)?://[^:/\s]+:)[^@\s]+"),  # database passwords
     re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*"),  # JWTs
     re.compile(r"(?i)(cc_refresh=)[^;\s]+"),  # the refresh cookie
+    re.compile(r"(?i)(app_key=)[^&\s]+"),  # Adzuna key in a URL
 ]
 
 
@@ -37,8 +52,7 @@ def redact(value: Any) -> Any:
         return value
     if isinstance(value, dict):
         return {
-            key: REDACTED if _SENSITIVE_KEYS.search(str(key)) else redact(item)
-            for key, item in value.items()
+            key: REDACTED if _is_sensitive_key(key) else redact(item) for key, item in value.items()
         }
     if isinstance(value, list | tuple):
         return [redact(item) for item in value]

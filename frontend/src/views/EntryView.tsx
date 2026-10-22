@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import { GOOGLE_CLIENT_ID, GoogleSignInButton } from "@/components/GoogleSignInButton";
 import { LineButton } from "@/components/LineButton";
-import { useUserProfile } from "@/context/UserProfileContext";
+import { authErrorMessage, useAuth } from "@/context/AuthContext";
 
 /* ── Compass SVG Logo ── */
 function CompassLogo({ size = 44 }: { size?: number }) {
@@ -301,11 +301,13 @@ function Field({
   placeholder,
   value,
   onChange,
+  autoComplete,
 }: {
   id: string;
   label: string;
   type?: string;
   placeholder?: string;
+  autoComplete?: string;
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
@@ -318,6 +320,7 @@ function Field({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
+        autoComplete={autoComplete}
         className="mt-2 w-full border-b border-border bg-transparent pb-2.5 text-sm outline-none placeholder:text-muted-foreground/40 focus:border-ink"
         style={{ transition: "border-color 300ms cubic-bezier(0.65,0,0.35,1)" }}
       />
@@ -328,41 +331,62 @@ function Field({
 /* ── Entry Page ── */
 export function Entry() {
   const [mode, setMode] = useState<"in" | "up">("in");
-  const { profile, updateProfile, isHydrated } = useUserProfile();
-  const [name, setName] = useState(profile.name || "");
-  const [email, setEmail] = useState(profile.email || "");
+  const { status, signIn, signUp, signInWithGoogle } = useAuth();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const router = useRouter();
 
-  // Prefill from the saved profile once it has been read from localStorage.
+  // Where to go after signing in: the page that sent us here (?next=), else the dashboard.
+  const destination = (fallback: string) => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    return next && next.startsWith("/") && !next.startsWith("//") ? next : fallback;
+  };
+
+  // Set while this form is signing someone in, so the effect below doesn't race
+  // its redirect (e.g. sign-up must go to /setup, not /dashboard).
+  const submitting = useRef(false);
+
+  // Already signed in when the page opened (session restored from the refresh cookie).
   useEffect(() => {
-    if (!isHydrated) return;
-    setName(profile.name || "");
-    setEmail(profile.email || "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHydrated]);
+    if (status === "authenticated" && !submitting.current) {
+      router.replace(destination("/dashboard"));
+    }
+  }, [status, router]);
+
+  const run = async (action: () => Promise<unknown>, fallback: string) => {
+    submitting.current = true;
+    setError(null);
+    setBusy(true);
+    try {
+      await action();
+      router.replace(destination(fallback));
+    } catch (err) {
+      submitting.current = false;
+      setError(authErrorMessage(err));
+      setBusy(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    if (mode === "up") {
+      void run(() => signUp(name.trim(), email.trim(), password), "/setup");
+    } else {
+      void run(() => signIn(email.trim(), password), "/dashboard");
+    }
+  };
 
-    // [API] Authentication — replaces the local-only profile write below.
-    // POST API_ENDPOINTS.auth.signIn  { email, password }
-    // POST API_ENDPOINTS.auth.signUp  { name, email, password }
-    // -> AUTH_SESSION_TEMPLATE: { token, expiresAt, user: { id, name, email, isOnboarded } }
-    //
-    // const res = await apiFetch<typeof AUTH_SESSION_TEMPLATE>(
-    //   mode === "up" ? API_ENDPOINTS.auth.signUp : API_ENDPOINTS.auth.signIn,
-    //   { method: "POST", body: JSON.stringify({ name, email, password }) },
-    // );
-    // localStorage.setItem("cc_token", res.data.token);
-    // updateProfile(res.data.user);
-    // router.push(res.data.user.isOnboarded ? "/dashboard" : "/setup");
+  const handleGoogle = (credential: string) => {
+    void run(() => signInWithGoogle(credential), "/dashboard");
+  };
 
-    updateProfile({
-      name: name.trim() || (mode === "up" ? "Ada Lovelace" : profile.name),
-      email: email.trim() || profile.email,
-    });
-    router.push(mode === "up" ? "/setup" : "/dashboard");
+  const switchMode = (next: "in" | "up") => {
+    setMode(next);
+    setError(null);
   };
 
   return (
@@ -400,13 +424,26 @@ export function Entry() {
             </div>
           </div>
 
+          {/* Google — one click, creates the account on first use */}
+          {GOOGLE_CLIENT_ID ? (
+            <div className="mb-7">
+              <GoogleSignInButton onCredential={handleGoogle} width={318} />
+              <div className="mt-7 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                or with email
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            </div>
+          ) : null}
+
           {/* Mode toggle tabs */}
           <div className="mb-7 flex gap-6 border-b border-border pb-1 text-sm">
             {(["in", "up"] as const).map((m) => (
               <button
                 key={m}
+                type="button"
                 id={m === "in" ? "tab-sign-in" : "tab-create-account"}
-                onClick={() => setMode(m)}
+                onClick={() => switchMode(m)}
                 className={
                   "relative pb-2.5 font-medium transition-colors duration-300 " +
                   (mode === m ? "text-foreground" : "text-muted-foreground hover:text-ink")
@@ -424,12 +461,13 @@ export function Entry() {
           </div>
 
           {/* Form */}
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
             {mode === "up" && (
               <Field
                 id="field-name"
                 label="Full name"
-                placeholder="Ada Lovelace"
+                placeholder="Your full name"
+                autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -439,6 +477,7 @@ export function Entry() {
               label="Email"
               type="email"
               placeholder="you@domain.com"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -446,26 +485,27 @@ export function Entry() {
               id="field-password"
               label="Password"
               type="password"
-              placeholder="••••••••"
+              placeholder={mode === "up" ? "At least 8 characters" : "••••••••"}
+              autoComplete={mode === "up" ? "new-password" : "current-password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <LineButton id="btn-submit" type="submit" className="mt-2 w-full">
-              {mode === "in" ? "Continue" : "Start profile setup →"}
+
+            {error ? (
+              <p id="auth-error" role="alert" className="text-xs text-destructive">
+                {error}
+              </p>
+            ) : null}
+
+            <LineButton
+              id="btn-submit"
+              type="submit"
+              className="mt-2 w-full"
+              disabled={busy || status === "loading"}
+            >
+              {busy ? "Please wait…" : mode === "in" ? "Continue" : "Start profile setup →"}
             </LineButton>
           </form>
-
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            Skip to{" "}
-            <Link
-              href="/dashboard"
-              id="link-skip-dashboard"
-              className="text-ink underline underline-offset-4 transition-opacity hover:opacity-70"
-            >
-              agent dashboard
-            </Link>
-            .
-          </p>
         </div>
 
         {/* Tagline below card */}

@@ -17,6 +17,7 @@ from typing import Protocol
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import utcnow
 from app.db.session import Database
@@ -89,6 +90,18 @@ class SqlMemoryStore:
 
     async def remember(self, user_id: uuid.UUID, facts: list[NewMemory]) -> int:
         """Insert new facts; identical facts for the same user are ignored. Returns rows added."""
+        async with self.db.session() as session:
+            return await SessionMemoryWriter(session).remember(user_id, facts)
+
+
+class SessionMemoryWriter:
+    """remember() inside a session someone else owns, so the facts commit (or roll back)
+    together with that unit of work, e.g. a graded mock-test attempt."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def remember(self, user_id: uuid.UUID, facts: list[NewMemory]) -> int:
         if not facts:
             return 0
         rows = [
@@ -104,12 +117,12 @@ class SqlMemoryStore:
             }
             for fact in facts
         ]
-        insert = sqlite_insert if self.db.is_sqlite else pg_insert
+        is_sqlite = self.session.get_bind().dialect.name == "sqlite"
+        insert = sqlite_insert if is_sqlite else pg_insert
         statement = (
             insert(MemoryRecord)
             .values(rows)
             .on_conflict_do_nothing(index_elements=["user_id", "content_hash"])
         )
-        async with self.db.session() as session:
-            result = await session.execute(statement)
+        result = await self.session.execute(statement)
         return int(result.rowcount or 0)  # type: ignore[attr-defined]

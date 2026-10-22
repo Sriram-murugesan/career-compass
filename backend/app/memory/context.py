@@ -7,7 +7,8 @@ long history can never overflow the model's context window:
     2. the profile snapshot
     3. outputs of agents this agent declared in `reads`   ← shared memory within a run
     4. long-term memories recalled for this request       ← shared memory across conversations
-    5. recent messages, newest kept first                  ← conversation memory
+    5. shared knowledge-graph insights                     ← shared knowledge across USERS
+    6. recent messages, newest kept first                  ← conversation memory
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.agents.base import AgentContext, AgentSpec, LlmClient
+from app.agents.base import AgentContext, AgentSpec, JobBoard, LlmClient
 
 
 class ContextBuilder:
@@ -32,6 +33,8 @@ class ContextBuilder:
         agent_outputs: dict[str, Any],
         history: list[dict[str, str]],
         llm: LlmClient,
+        job_board: JobBoard | None = None,
+        graph_insights: str = "",
     ) -> AgentContext:
         inputs = {name: agent_outputs[name] for name in spec.reads if name in agent_outputs}
         sections: list[str] = [f"## User request\n{request}"]
@@ -54,6 +57,8 @@ class ContextBuilder:
             add(f"Output of {name} agent", json.dumps(output, ensure_ascii=False))
         if memories:
             add("What we remember about the user", "\n".join(f"- {m}" for m in memories))
+        if graph_insights:
+            add("Shared career graph", graph_insights)
         if history:
             recent: list[str] = []
             for message in reversed(history):  # newest first, so trimming drops the oldest
@@ -68,4 +73,5 @@ class ContextBuilder:
             recent_messages=history,
             rendered="\n\n".join(sections),
             llm=llm,
+            job_board=job_board,
         )

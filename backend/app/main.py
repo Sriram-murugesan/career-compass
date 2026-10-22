@@ -26,11 +26,14 @@ from app.core.middleware import RequestContextMiddleware
 from app.core.rate_limit import RateLimiter
 from app.db.migrations import upgrade_to_head
 from app.db.session import Database
+from app.jobs.factory import build_job_board
+from app.knowledge.store import SqlKnowledgeGraph
 from app.llm.gateway import LlmGateway
-from app.llm.pool import build_pool
+from app.llm.pool import build_pool, providers_from_settings
 from app.memory.context import ContextBuilder
 from app.memory.store import SqlMemoryStore
-from app.modules import auth, chat, health, profile
+from app.modules import auth, chat, graph, health, interview, productivity, profile
+from app.modules.auth.google import GoogleTokenVerifier, SigningKeySource
 from app.orchestrator import Orchestrator, OrchestratorDeps
 
 logger = logging.getLogger("app")
@@ -41,7 +44,10 @@ def create_app(
     *,
     log_stream: Any = None,
     llm_transport: httpx.AsyncBaseTransport | None = None,
+    google_keys: SigningKeySource | None = None,
+    jobs_transport: httpx.AsyncBaseTransport | None = None,
 ) -> FastAPI:
+    """`llm_transport` and `google_keys` let tests replace the network (LLM / Google JWKS)."""
     settings = settings or get_settings()
     configure_logging(
         settings.log_level, json_output=settings.environment == "production", stream=log_stream
@@ -55,18 +61,16 @@ def create_app(
         if settings.db_auto_migrate:
             await upgrade_to_head(settings.database_direct_url or settings.database_url)
 
+        providers = providers_from_settings(settings)  # Groq and/or OpenRouter, whichever has keys
         llm = LlmGateway(
-            build_pool(
-                [key.get_secret_value() for key in settings.groq_api_keys],
-                base_url=settings.groq_base_url,
-                large_model=settings.llm_model_large,
-                fast_model=settings.llm_model_fast,
-            ),
+            build_pool(providers),
             timeout_seconds=settings.llm_timeout_seconds,
             transport=llm_transport,
         )
+        job_board = build_job_board(settings, jobs_transport)  # free boards (+ Adzuna if keyed)
         app.state.db = db
         app.state.llm = llm
+        app.state.job_board = job_board
         app.state.orchestrator = Orchestrator(
             OrchestratorDeps(
                 llm=llm,
@@ -74,6 +78,8 @@ def create_app(
                 context_builder=ContextBuilder(settings.memory_context_budget_chars),
                 registry=REGISTRY,
                 memory_recall_limit=settings.memory_recall_limit,
+                job_board=job_board,
+                knowledge=SqlKnowledgeGraph(db, min_users=settings.graph_min_users),
             )
         )
         logger.info(
@@ -82,8 +88,9 @@ def create_app(
                 "context": {
                     "environment": settings.environment,
                     "database": "sqlite" if db.is_sqlite else "postgres",
-                    "llmKeys": len(settings.groq_api_keys),
+                    "llmKeys": {provider.name: len(provider.api_keys) for provider in providers},
                     "agents": len(REGISTRY),
+                    "jobBoard": job_board.name if job_board else None,
                 }
             },
         )
@@ -91,6 +98,8 @@ def create_app(
             yield
         finally:
             await llm.aclose()
+            if job_board is not None:
+                await job_board.aclose()
             await db.dispose()
 
     app = FastAPI(
@@ -103,6 +112,7 @@ def create_app(
     )
     app.state.settings = settings
     app.state.auth_rate_limiter = RateLimiter(settings.auth_rate_limit_per_minute)
+    app.state.google_verifier = GoogleTokenVerifier(settings.google_client_ids, keys=google_keys)
 
     app.add_middleware(
         CORSMiddleware,
@@ -116,6 +126,14 @@ def create_app(
     app.add_middleware(RequestContextMiddleware, hsts=settings.is_production)
     register_exception_handlers(app)
 
-    for router in (health.router, auth.router, profile.router, chat.router):
+    for router in (
+        health.router,
+        auth.router,
+        profile.router,
+        chat.router,
+        graph.router,
+        interview.router,
+        productivity.router,
+    ):
         app.include_router(router, prefix=ep.API_PREFIX)
     return app

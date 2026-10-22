@@ -77,6 +77,11 @@ class ChatService:
                 messages=[MessageOut.model_validate(m) for m in messages],
             )
 
+    async def delete_conversation(self, user_id: uuid.UUID, conversation_id: uuid.UUID) -> None:
+        async with self.uow() as uow:
+            if not await uow.chat.delete_conversation(user_id, conversation_id):
+                raise NotFound("Conversation not found")
+
     async def prepare_turn(
         self, user_id: uuid.UUID, conversation_id: uuid.UUID | None, message: str
     ) -> tuple[uuid.UUID, dict[str, Any], list[dict[str, str]]]:
@@ -107,6 +112,7 @@ class ChatService:
         message: str,
         profile: dict[str, Any],
         history: list[dict[str, str]],
+        agents: list[str] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         yield {"type": "conversation", "conversationId": str(conversation_id)}
         answer: dict[str, Any] | None = None
@@ -117,6 +123,7 @@ class ChatService:
                 request=message,
                 profile=profile,
                 history=history,
+                agents=agents,
             ):
                 if event.get("type") == "answer":
                     answer = event

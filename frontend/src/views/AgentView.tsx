@@ -36,7 +36,6 @@ export function AgentPage({ agentId }: { agentId: string }) {
             {agent.summary}
           </p>
         </div>
-        <span className="ml-auto text-xs text-muted-foreground">{agent.status}</span>
       </header>
 
       <div className="rise-in mt-10">

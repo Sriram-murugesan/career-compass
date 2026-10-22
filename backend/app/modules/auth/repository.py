@@ -24,9 +24,29 @@ class AuthRepository:
     async def find_user_by_id(self, user_id: uuid.UUID) -> User | None:
         return await self.session.get(User, user_id)
 
-    async def create_user(self, *, name: str, email: str, password_hash: str) -> User | None:
-        """Returns None when the email is already registered (unique index)."""
-        user = User(name=name, email=email, password_hash=password_hash)
+    async def find_user_by_google_sub(self, google_sub: str) -> User | None:
+        result = await self.session.execute(select(User).where(User.google_sub == google_sub))
+        return result.scalar_one_or_none()
+
+    async def create_user(
+        self,
+        *,
+        name: str,
+        email: str,
+        password_hash: str | None = None,
+        google_sub: str | None = None,
+        avatar_url: str | None = None,
+        email_verified: bool = False,
+    ) -> User | None:
+        """Returns None when the email (or Google account) is already registered."""
+        user = User(
+            name=name,
+            email=email,
+            password_hash=password_hash,
+            google_sub=google_sub,
+            avatar_url=avatar_url,
+            email_verified=email_verified,
+        )
         try:
             async with self.session.begin_nested():  # savepoint: a duplicate doesn't poison the txn
                 self.session.add(user)
@@ -34,6 +54,25 @@ class AuthRepository:
         except IntegrityError:
             return None
         return user
+
+    async def link_google_account(
+        self, user: User, *, google_sub: str, avatar_url: str | None, drop_password: bool
+    ) -> User:
+        user.google_sub = google_sub
+        user.email_verified = True
+        if drop_password:
+            user.password_hash = None
+        if avatar_url and not user.avatar_url:
+            user.avatar_url = avatar_url
+        await self.session.flush()
+        return user
+
+    async def revoke_all_sessions(self, user_id: uuid.UUID) -> None:
+        await self.session.execute(
+            update(RefreshToken)
+            .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=utcnow())
+        )
 
     async def add_refresh_token(
         self,

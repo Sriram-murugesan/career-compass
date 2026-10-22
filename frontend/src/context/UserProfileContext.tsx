@@ -1,6 +1,19 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+/**
+ * The signed-in user's career profile — real data only.
+ *
+ * - Name and email come from the account (AuthContext).
+ * - Everything else is loaded from GET /api/profile and saved with PATCH /api/profile.
+ * - Activity history and saved tailored resumes have no backend endpoints yet;
+ *   they start empty and are kept in this browser, per user, until those
+ *   endpoints exist.
+ */
+
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { API_ENDPOINTS } from "@/lib/api";
 
 export interface SkillItem {
   name: string;
@@ -13,9 +26,9 @@ export interface ActivityItem {
   type: "resume_generated" | "job_searched" | "profile_updated" | "interview_practiced";
   title: string;
   timestamp: string;
-  details?: string;
-  targetCompany?: string;
-  atsScore?: number;
+  details?: string | undefined;
+  targetCompany?: string | undefined;
+  atsScore?: number | undefined;
 }
 
 export interface TailoredResumeItem {
@@ -24,10 +37,18 @@ export interface TailoredResumeItem {
   company: string;
   location: string;
   createdAt: string;
-  atsScore: number;
+  atsScore: number | null;
   matchedKeywords: string[];
   summary: string;
   bullets: string[];
+}
+
+export type WorkPreference = "Remote" | "Hybrid" | "Onsite" | "";
+
+export interface AiPreferences {
+  tone: "Professional" | "Concise" | "Ambitious";
+  focusArea: string;
+  autoRunAgents: boolean;
 }
 
 export interface UserProfile {
@@ -39,103 +60,46 @@ export interface UserProfile {
   experienceLevel: string;
   targetRoles: string[];
   targetSalary: string;
-  workPreference: "Remote" | "Hybrid" | "Onsite";
+  workPreference: WorkPreference;
   skills: SkillItem[];
   interests: string[];
   goals: string[];
-  resume: {
-    fileName: string;
-    uploadedAt: string;
-    atsScore: number;
-    parsedSkillsCount: number;
-    summary: string;
-  };
-  aiPreferences: {
-    tone: "Professional" | "Concise" | "Ambitious";
-    focusArea: string;
-    autoRunAgents: boolean;
-  };
+  aiPreferences: AiPreferences;
   activities: ActivityItem[];
   tailoredResumes: TailoredResumeItem[];
 }
 
-const DEFAULT_PROFILE: UserProfile = {
-  name: "Ada Lovelace",
-  email: "ada.lovelace@example.com",
-  title: "Senior Full-Stack Engineer",
-  bio: "Passionate about full-stack web applications, AI agent tooling, and high-performance system design.",
-  location: "San Francisco, CA (Remote)",
-  experienceLevel: "Senior (6+ years)",
-  targetRoles: ["Senior Software Engineer", "Staff AI Platform Lead", "Tech Lead"],
-  targetSalary: "$160,000 - $195,000 / yr",
-  workPreference: "Remote",
-  skills: [
-    { name: "TypeScript", category: "Technical", level: "Expert" },
-    { name: "React", category: "Technical", level: "Expert" },
-    { name: "Python", category: "Technical", level: "Advanced" },
-    { name: "System design", category: "Technical", level: "Advanced" },
-    { name: "SQL", category: "Technical", level: "Intermediate" },
-    { name: "Figma", category: "Tools", level: "Intermediate" },
-    { name: "AI tooling", category: "Technical", level: "Advanced" },
-    { name: "Team Leadership", category: "Soft Skills", level: "Advanced" },
-  ],
-  interests: ["Infrastructure", "AI tooling", "Design systems", "Developer Experience"],
-  goals: ["Senior engineer", "Switch to ML", "Remote role", "Lead an AI team"],
-  resume: {
-    fileName: "Ada_Lovelace_CV_2026.pdf",
-    uploadedAt: "August 12, 2026",
-    atsScore: 92,
-    parsedSkillsCount: 14,
-    summary: "Senior Engineer with 6+ yrs leading React, TypeScript & AI system architecture.",
-  },
-  aiPreferences: {
-    tone: "Ambitious",
-    focusArea: "High-growth tech startups and AI product engineering",
-    autoRunAgents: true,
-  },
-  activities: [
-    {
-      id: "act-1",
-      type: "resume_generated",
-      title: "Generated Tailored Resume for Kepler Systems",
-      timestamp: "Just now",
-      details: "Tailored for Senior Frontend Engineer role with 96% ATS match.",
-      targetCompany: "Kepler Systems",
-      atsScore: 96,
-    },
-    {
-      id: "act-2",
-      type: "job_searched",
-      title: "Ran Job Search Agent",
-      timestamp: "2 hours ago",
-      details: "Discovered 3 top matches in London & Remote EU.",
-    },
-    {
-      id: "act-3",
-      type: "profile_updated",
-      title: "Updated Profile Target Criteria",
-      timestamp: "Yesterday",
-      details: "Added AI Tooling & System Design as key focus skills.",
-    },
-  ],
-  tailoredResumes: [
-    {
-      id: "tres-1",
-      jobTitle: "Senior Frontend Engineer",
-      company: "Kepler Systems",
-      location: "London · Hybrid",
-      createdAt: "August 16, 2026",
-      atsScore: 96,
-      matchedKeywords: ["TypeScript", "System Design", "Micro-frontends", "Performance"],
-      summary:
-        "Senior Engineer specialized in high-performance frontend micro-architecture, TypeScript pipelines, and rendering optimization.",
-      bullets: [
-        "Architected enterprise frontend infrastructure for 1M+ active users, cutting initial bundle load time by 44%.",
-        "Engineered type-safe design token system adoption across 6 product engineering squads.",
-        "Pioneered automated ATS & accessibility CI audit check pipelines with 99.8% compliance rate.",
-      ],
-    },
-  ],
+/** The backend's profile shape (GET/PATCH /api/profile). */
+interface ApiProfile {
+  headline: string;
+  bio: string;
+  location: string;
+  targetSalary: string;
+  workPreference: WorkPreference;
+  experienceLevel: string;
+  targetRoles: string[];
+  skills: SkillItem[];
+  interests: string[];
+  goals: string[];
+  aiPreferences: AiPreferences;
+}
+
+const EMPTY_PROFILE: UserProfile = {
+  name: "",
+  email: "",
+  title: "",
+  bio: "",
+  location: "",
+  experienceLevel: "",
+  targetRoles: [],
+  targetSalary: "",
+  workPreference: "",
+  skills: [],
+  interests: [],
+  goals: [],
+  aiPreferences: { tone: "Professional", focusArea: "", autoRunAgents: true },
+  activities: [],
+  tailoredResumes: [],
 };
 
 interface UserProfileContextType {
@@ -146,191 +110,229 @@ interface UserProfileContextType {
   updateSkills: (skills: SkillItem[]) => void;
   updateInterests: (interests: string[]) => void;
   updateGoals: (goals: string[]) => void;
-  uploadResumeSimulated: (fileName: string) => void;
   logActivity: (activity: Omit<ActivityItem, "id" | "timestamp">) => void;
   saveTailoredResume: (resume: Omit<TailoredResumeItem, "id" | "createdAt">) => void;
   deleteTailoredResume: (id: string) => void;
   completionPercentage: number;
-  /** False until the saved profile has been read from localStorage after mount. */
+  /** False until the profile has been loaded from the API. */
   isHydrated: boolean;
 }
 
 const UserProfileContext = createContext<UserProfileContextType | undefined>(undefined);
 
-const STORAGE_KEY = "career_compass_user_profile_v2";
+const localKey = (userId: string) => `career_compass_local_${userId}`;
+
+function fromApi(api: ApiProfile): Partial<UserProfile> {
+  return {
+    title: api.headline,
+    bio: api.bio,
+    location: api.location,
+    targetSalary: api.targetSalary,
+    workPreference: api.workPreference,
+    experienceLevel: api.experienceLevel,
+    targetRoles: api.targetRoles,
+    skills: api.skills,
+    interests: api.interests,
+    goals: api.goals,
+    aiPreferences: api.aiPreferences,
+  };
+}
+
+/** Only fields the backend stores are sent; name/email belong to the account. */
+function toApi(updates: Partial<UserProfile>): Partial<ApiProfile> {
+  const body: Partial<ApiProfile> = {};
+  if (updates.title !== undefined) body.headline = updates.title;
+  if (updates.bio !== undefined) body.bio = updates.bio;
+  if (updates.location !== undefined) body.location = updates.location;
+  if (updates.targetSalary !== undefined) body.targetSalary = updates.targetSalary;
+  if (updates.workPreference !== undefined) body.workPreference = updates.workPreference;
+  if (updates.experienceLevel !== undefined) body.experienceLevel = updates.experienceLevel;
+  if (updates.targetRoles !== undefined) body.targetRoles = updates.targetRoles;
+  if (updates.skills !== undefined) body.skills = updates.skills;
+  if (updates.interests !== undefined) body.interests = updates.interests;
+  if (updates.goals !== undefined) body.goals = updates.goals;
+  if (updates.aiPreferences !== undefined) body.aiPreferences = updates.aiPreferences;
+  return body;
+}
 
 export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Start from defaults so server and first client render match; load storage after mount.
-  const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
+  const { user, authFetch } = useAuth();
+  const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
   const [isHydrated, setIsHydrated] = useState(false);
 
+  // Load (or clear) the profile when the signed-in ACCOUNT changes — not on every token
+  // refresh (that yields a new user object for the same account and would discard edits).
+  const userId = user?.id ?? null;
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setProfile({ ...DEFAULT_PROFILE, ...JSON.parse(saved) });
-      }
-    } catch (e) {
-      console.error("Failed to load profile from localStorage:", e);
+    if (!userId) {
+      setProfile(EMPTY_PROFILE);
+      setIsHydrated(false);
+      return;
     }
-    setIsHydrated(true);
+    let active = true;
+    let local: Pick<UserProfile, "activities" | "tailoredResumes"> = {
+      activities: [],
+      tailoredResumes: [],
+    };
+    try {
+      const saved = localStorage.getItem(localKey(userId));
+      if (saved) local = { ...local, ...JSON.parse(saved) };
+    } catch {
+      // Unreadable local data: start empty.
+    }
+    authFetch<ApiProfile>(API_ENDPOINTS.profile.get)
+      .then((res) => {
+        if (!active) return;
+        setProfile((prev) => ({
+          ...EMPTY_PROFILE,
+          ...fromApi(res.data),
+          ...local,
+          name: prev.name,
+          email: prev.email,
+        }));
+        setIsHydrated(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setProfile((prev) => ({ ...EMPTY_PROFILE, ...local, name: prev.name, email: prev.email }));
+        setIsHydrated(true);
+        toast.error("Couldn't load your profile. Please refresh.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId, authFetch]);
+
+  // Name and email belong to the account: keep them in step with it.
+  const accountName = user?.name ?? "";
+  const accountEmail = user?.email ?? "";
+  useEffect(() => {
+    setProfile((prev) =>
+      prev.name === accountName && prev.email === accountEmail
+        ? prev
+        : { ...prev, name: accountName, email: accountEmail },
+    );
+  }, [accountName, accountEmail]);
+
+  // Persist the browser-only lists, per user.
+  useEffect(() => {
+    if (!user || !isHydrated) return;
+    try {
+      localStorage.setItem(
+        localKey(user.id),
+        JSON.stringify({
+          activities: profile.activities,
+          tailoredResumes: profile.tailoredResumes,
+        }),
+      );
+    } catch {
+      // Storage full or blocked: the lists still work for this session.
+    }
+  }, [user, isHydrated, profile.activities, profile.tailoredResumes]);
+
+  const save = useCallback(
+    (updates: Partial<UserProfile>) => {
+      const body = toApi(updates);
+      if (Object.keys(body).length === 0) return;
+      authFetch<ApiProfile>(API_ENDPOINTS.profile.update, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      })
+        .then((res) => setProfile((prev) => ({ ...prev, ...fromApi(res.data) })))
+        .catch(() => toast.error("Couldn't save your profile. Please try again."));
+    },
+    [authFetch],
+  );
+
+  const updateProfile = useCallback(
+    (updates: Partial<UserProfile>) => {
+      setProfile((prev) => ({ ...prev, ...updates })); // instant UI; the server's answer follows
+      save(updates);
+    },
+    [save],
+  );
+
+  const updateSkills = useCallback(
+    (skills: SkillItem[]) => updateProfile({ skills }),
+    [updateProfile],
+  );
+  const updateInterests = useCallback(
+    (interests: string[]) => updateProfile({ interests }),
+    [updateProfile],
+  );
+  const updateGoals = useCallback((goals: string[]) => updateProfile({ goals }), [updateProfile]);
+
+  const addSkill = useCallback(
+    (skill: SkillItem) => {
+      if (profile.skills.some((s) => s.name.toLowerCase() === skill.name.toLowerCase())) return;
+      updateSkills([...profile.skills, skill]);
+    },
+    [profile.skills, updateSkills],
+  );
+
+  const removeSkill = useCallback(
+    (skillName: string) =>
+      updateSkills(profile.skills.filter((s) => s.name.toLowerCase() !== skillName.toLowerCase())),
+    [profile.skills, updateSkills],
+  );
+
+  const logActivity = useCallback((activity: Omit<ActivityItem, "id" | "timestamp">) => {
+    const item: ActivityItem = {
+      ...activity,
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+    };
+    setProfile((prev) => ({ ...prev, activities: [item, ...prev.activities].slice(0, 50) }));
   }, []);
 
-  // [API] Hydrate the profile from the backend instead of localStorage.
-  // GET API_ENDPOINTS.profile.get -> PROFILE_TEMPLATE
-  //
-  // useEffect(() => {
-  //   apiFetch<typeof PROFILE_TEMPLATE>(API_ENDPOINTS.profile.get)
-  //     .then((res) => setProfile((prev) => ({ ...prev, ...res.data })))
-  //     .catch(console.error);
-  // }, []);
-
-  useEffect(() => {
-    if (!isHydrated) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-    } catch (e) {
-      console.error("Failed to save profile to localStorage:", e);
-    }
-  }, [profile, isHydrated]);
-
-  const updateProfile = (updates: Partial<UserProfile>) => {
-    // [API] PATCH API_ENDPOINTS.profile.update  { ...updates } -> PROFILE_TEMPLATE
-    // apiFetch(API_ENDPOINTS.profile.update, { method: "PATCH", body: JSON.stringify(updates) });
-    setProfile((prev) => ({ ...prev, ...updates }));
-  };
-
-  const addSkill = (skill: SkillItem) => {
-    setProfile((prev) => {
-      if (prev.skills.some((s) => s.name.toLowerCase() === skill.name.toLowerCase())) {
-        return prev;
-      }
-      return { ...prev, skills: [...prev.skills, skill] };
-    });
-  };
-
-  const removeSkill = (skillName: string) => {
-    setProfile((prev) => ({
-      ...prev,
-      skills: prev.skills.filter((s) => s.name.toLowerCase() !== skillName.toLowerCase()),
-    }));
-  };
-
-  const updateSkills = (skills: SkillItem[]) => {
-    // [API] PUT API_ENDPOINTS.profile.skills  { skills } -> { skills: SkillItem[] }
-    // DELETE API_ENDPOINTS.profile.skill(name) for removeSkill()
-    setProfile((prev) => ({ ...prev, skills }));
-  };
-
-  const updateInterests = (interests: string[]) => {
-    // [API] PUT API_ENDPOINTS.profile.interests  { interests } -> { interests: string[] }
-    setProfile((prev) => ({ ...prev, interests }));
-  };
-
-  const updateGoals = (goals: string[]) => {
-    // [API] PUT API_ENDPOINTS.profile.goals  { goals } -> { goals: string[] }
-    setProfile((prev) => ({ ...prev, goals }));
-  };
-
-  const uploadResumeSimulated = (fileName: string) => {
-    // [API] Real upload + server-side parsing replaces this simulation.
-    // POST API_ENDPOINTS.resume.upload  (multipart/form-data, field: "file")
-    // -> RESUME_TEMPLATE { fileName, fileUrl, uploadedAt, atsScore, parsedSkillsCount, summary }
-    //
-    // const form = new FormData();
-    // form.append("file", file);
-    // const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.resume.upload}`, { method: "POST", body: form });
-    // const { data } = await res.json();
-    // setProfile((prev) => ({ ...prev, resume: data }));
-
-    setProfile((prev) => ({
-      ...prev,
-      resume: {
-        fileName,
-        uploadedAt: new Date().toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        }),
-        atsScore: Math.floor(88 + Math.random() * 8), // 88 - 95 score
-        parsedSkillsCount: prev.skills.length + 3,
-        summary: `Parsed resume for ${prev.name}: Verified ${prev.skills.length} skills with high ATS keyword matching.`,
-      },
-    }));
-  };
-
-  const logActivity = (activity: Omit<ActivityItem, "id" | "timestamp">) => {
-    // [API] POST API_ENDPOINTS.activity.create { type, title, details, targetCompany, atsScore }
-    //       -> ACTIVITY_TEMPLATE ; GET API_ENDPOINTS.activity.list -> ACTIVITY_TEMPLATE[]
-    const newItem: ActivityItem = {
-      ...activity,
-      id: `act-${Date.now()}`,
-      timestamp: "Just now",
-    };
-    setProfile((prev) => ({
-      ...prev,
-      activities: [newItem, ...(prev.activities || [])],
-    }));
-  };
-
-  const saveTailoredResume = (resume: Omit<TailoredResumeItem, "id" | "createdAt">) => {
-    // [API] POST API_ENDPOINTS.resume.tailoredCreate { jobId?, jobTitle, company, location }
-    //       -> TAILORED_RESUME_TEMPLATE (id + createdAt + atsScore generated server-side)
-
-    const newResume: TailoredResumeItem = {
-      ...resume,
-      id: `tres-${Date.now()}`,
-      createdAt: new Date().toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      }),
-    };
-
-    setProfile((prev) => {
-      // Remove any previous tailored resume for the same company to keep top version clean
-      const filtered = (prev.tailoredResumes || []).filter(
-        (r) => r.company.toLowerCase() !== resume.company.toLowerCase(),
-      );
-      return {
-        ...prev,
-        tailoredResumes: [newResume, ...filtered],
+  const saveTailoredResume = useCallback(
+    (resume: Omit<TailoredResumeItem, "id" | "createdAt">) => {
+      const item: TailoredResumeItem = {
+        ...resume,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
       };
-    });
+      setProfile((prev) => ({
+        ...prev,
+        tailoredResumes: [
+          item,
+          ...prev.tailoredResumes.filter(
+            (r) => !(r.company === resume.company && r.jobTitle === resume.jobTitle),
+          ),
+        ],
+      }));
+      logActivity({
+        type: "resume_generated",
+        title: `Saved a resume tailored to ${resume.jobTitle}${resume.company ? ` at ${resume.company}` : ""}`,
+        details: resume.summary,
+        targetCompany: resume.company || undefined,
+        atsScore: resume.atsScore ?? undefined,
+      });
+    },
+    [logActivity],
+  );
 
-    logActivity({
-      type: "resume_generated",
-      title: `Generated Tailored Resume for ${resume.company}`,
-      details: `Customized for ${resume.jobTitle} with ${resume.atsScore}% ATS compatibility.`,
-      targetCompany: resume.company,
-      atsScore: resume.atsScore,
-    });
-  };
-
-  const deleteTailoredResume = (id: string) => {
-    // [API] DELETE API_ENDPOINTS.resume.tailoredDelete(id) -> { deleted: true }
-    // [API] GET API_ENDPOINTS.resume.export(id)?format=pdf -> file stream (download button)
-
+  const deleteTailoredResume = useCallback((id: string) => {
     setProfile((prev) => ({
       ...prev,
-      tailoredResumes: (prev.tailoredResumes || []).filter((r) => r.id !== id),
+      tailoredResumes: prev.tailoredResumes.filter((r) => r.id !== id),
     }));
-  };
+  }, []);
 
-  const calculateCompletion = (p: UserProfile): number => {
-    let score = 0;
-    if (p.name) score += 15;
-    if (p.email) score += 10;
-    if (p.title) score += 15;
-    if (p.bio) score += 15;
-    if (p.skills.length > 0) score += 15;
-    if (p.interests.length > 0) score += 10;
-    if (p.goals.length > 0) score += 10;
-    if (p.resume?.fileName) score += 10;
-    return Math.min(100, score);
-  };
-
-  const completionPercentage = calculateCompletion(profile);
+  // Each item is something the agents actually use.
+  const completionPercentage = useMemo(() => {
+    const filled = [
+      profile.title,
+      profile.bio,
+      profile.location,
+      profile.experienceLevel,
+      profile.targetRoles.length,
+      profile.skills.length,
+      profile.interests.length,
+      profile.goals.length,
+    ].filter(Boolean).length;
+    return Math.round((filled / 8) * 100);
+  }, [profile]);
 
   return (
     <UserProfileContext.Provider
@@ -342,7 +344,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         updateSkills,
         updateInterests,
         updateGoals,
-        uploadResumeSimulated,
         logActivity,
         saveTailoredResume,
         deleteTailoredResume,
@@ -362,3 +363,11 @@ export const useUserProfile = () => {
   }
   return context;
 };
+
+/** "2026-10-12T…" → "Oct 12, 2026" (falls back to the raw value). */
+export function formatDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}

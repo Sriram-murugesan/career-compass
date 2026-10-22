@@ -99,3 +99,61 @@ async def test_agents_catalogue(harness: Harness) -> None:
     agents = {agent["id"]: agent for agent in response.json()["data"]}
     assert len(agents) == 7
     assert agents["validation"]["reads"] == ["resume"]
+
+
+async def test_profile_bio_salary_and_work_preference(harness: Harness) -> None:
+    token = (await harness.sign_up(email="prefs@example.com"))["token"]
+    headers = harness.auth(token)
+    blank = (await harness.client.get("/api/profile", headers=headers)).json()["data"]
+    assert (blank["bio"], blank["targetSalary"], blank["workPreference"]) == ("", "", "")
+
+    updated = await harness.client.patch(
+        "/api/profile",
+        headers=headers,
+        json={"bio": "I build UIs.", "targetSalary": "₹30 LPA", "workPreference": "Hybrid"},
+    )
+    data = updated.json()["data"]
+    assert (data["bio"], data["targetSalary"], data["workPreference"]) == (
+        "I build UIs.",
+        "₹30 LPA",
+        "Hybrid",
+    )
+    bad = await harness.client.patch(
+        "/api/profile", headers=headers, json={"workPreference": "Moon"}
+    )
+    assert bad.status_code == 400
+
+
+async def test_delete_conversation_is_owner_only(harness: Harness) -> None:
+    owner = harness.auth((await harness.sign_up(email="del-owner@example.com"))["token"])
+    other = harness.auth((await harness.sign_up(email="del-other@example.com"))["token"])
+    created = await harness.client.post(
+        "/api/chat/conversations", headers=owner, json={"title": "Temp"}
+    )
+    conversation_id = created.json()["data"]["id"]
+    url = f"/api/chat/conversations/{conversation_id}"
+
+    assert (await harness.client.delete(url, headers=other)).status_code == 404
+    deleted = await harness.client.delete(url, headers=owner)
+    assert deleted.status_code == 200 and deleted.json()["data"] == {"deleted": True}
+    assert (await harness.client.get(url, headers=owner)).status_code == 404
+
+
+async def test_orchestrate_can_run_one_specific_agent(harness: Harness) -> None:
+    headers = harness.auth((await harness.sign_up(email="one-agent@example.com"))["token"])
+    response = await harness.client.post(
+        "/api/chat/orchestrate",
+        headers=headers,
+        json={"message": "Give me practice questions", "agents": ["interview"]},
+    )
+    plan = next(e for e in parse_sse(response.text) if e["type"] == "plan")["plan"]
+    assert plan == [["interview"]]
+
+    # Validation can't work without a resume draft, so the resume agent runs first.
+    response = await harness.client.post(
+        "/api/chat/orchestrate",
+        headers=headers,
+        json={"message": "Check my resume", "agents": ["validation"]},
+    )
+    plan = next(e for e in parse_sse(response.text) if e["type"] == "plan")["plan"]
+    assert plan == [["resume"], ["validation"]]

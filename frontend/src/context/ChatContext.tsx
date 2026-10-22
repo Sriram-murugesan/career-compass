@@ -1,21 +1,35 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { useUserProfile } from "./UserProfileContext";
+/**
+ * Chat with the agents — real conversations and real runs.
+ *
+ * - Conversations and their messages come from /api/chat/conversations.
+ * - Sending a message calls POST /api/chat/orchestrate and renders its live
+ *   event stream: the plan, each agent's progress, then the answer and every
+ *   agent's real output. The backend saves both messages.
+ */
 
-export interface OrchestrationStep {
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { getAgentByBackendId } from "@/lib/agents";
+import { API_ENDPOINTS, ApiRequestError } from "@/lib/api";
+import { streamOrchestrate, type OrchestrateEvent } from "@/lib/orchestrate";
+
+export interface RunStep {
+  /** backend agent id */
   agentId: string;
   agentName: string;
-  status: "idle" | "running" | "completed";
-  details: string;
+  status: "pending" | "running" | "completed" | "failed";
+  summary?: string | undefined;
 }
 
-export interface OrchestrationData {
-  steps: OrchestrationStep[];
-  activeStepIndex: number;
+export interface AgentRun {
+  steps: RunStep[];
   isComplete: boolean;
-  resultType?: "jobs" | "validation" | "roadmap" | "advice" | "interview" | "text";
-  resultData?: any;
+  /** backend agent id → its output */
+  agentOutputs: Record<string, Record<string, unknown>>;
+  error?: string | undefined;
 }
 
 export interface ChatMessage {
@@ -23,15 +37,16 @@ export interface ChatMessage {
   sender: "user" | "assistant";
   text: string;
   timestamp: string;
-  isOrchestration?: boolean;
-  orchestration?: OrchestrationData;
+  run?: AgentRun | undefined;
 }
 
 export interface Conversation {
   id: string;
   title: string;
-  messages: ChatMessage[];
   lastUpdated: string;
+  messages: ChatMessage[];
+  /** Messages fetched from the server (lists only carry titles). */
+  loaded: boolean;
 }
 
 interface ChatContextType {
@@ -46,599 +61,284 @@ interface ChatContextType {
   isOrchestrating: boolean;
 }
 
+interface ApiConversation {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+interface ApiMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+  payload: {
+    steps?: Array<{ agentId: string; agentName: string; status: string; summary: string }>;
+    agentOutputs?: Record<string, Record<string, unknown>>;
+  } | null;
+}
+
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-const STORAGE_KEY = "career_compass_chat_v1";
+const NEW_CONVERSATION = "__new__";
 
-const DEFAULT_CONVERSATIONS: Conversation[] = [
-  {
-    id: "conv-1",
-    title: "Resume & Validation Check",
-    messages: [
-      {
-        id: "msg-1-1",
-        sender: "assistant",
-        text: "Hello! I'm your multi-agent Career Compass. How can I help you accelerate your job search today?",
-        timestamp: "2 hours ago",
-      },
-      {
-        id: "msg-1-2",
-        sender: "user",
-        text: "Can you review my resume formatting?",
-        timestamp: "2 hours ago",
-      },
-      {
-        id: "msg-1-3",
-        sender: "assistant",
-        text: "I routed your resume to the **Validation Agent** and the **Resume Builder**. They completed 6 compliance checks. Your ATS readability score is 92%. Two bullets are flagged for length validation.",
-        timestamp: "2 hours ago",
-        isOrchestration: true,
-        orchestration: {
-          isComplete: true,
-          activeStepIndex: 1,
-          steps: [
-            {
-              agentId: "resume",
-              agentName: "Resume Agent",
-              status: "completed",
-              details: "Retrieved CV parsed context",
-            },
-            {
-              agentId: "validation",
-              agentName: "Validation Agent",
-              status: "completed",
-              details: "Checked formatting & layout compatibility",
-            },
-          ],
-          resultType: "validation",
-          resultData: [
-            { label: "Contact block parsable", state: "pass", note: "Email and phone detected" },
-            {
-              label: "Reverse-chronological order",
-              state: "pass",
-              note: "Consistent across roles",
-            },
-            { label: "Bullet length", state: "warn", note: "Two bullets exceed 24 words" },
-            { label: "No tables or text boxes", state: "pass", note: "Clean single-column layout" },
-          ],
-        },
-      },
-    ],
-    lastUpdated: "2 hours ago",
-  },
-  {
-    id: "conv-2",
-    title: "Senior Role Exploration",
-    messages: [
-      {
-        id: "msg-2-1",
-        sender: "assistant",
-        text: "Welcome! Tell me what kind of roles you are targeting, and I will orchestrate a search.",
-        timestamp: "Yesterday",
-      },
-      {
-        id: "msg-2-2",
-        sender: "user",
-        text: "Find me some Senior Frontend roles",
-        timestamp: "Yesterday",
-      },
-      {
-        id: "msg-2-3",
-        sender: "assistant",
-        text: "I orchestrated a target job search matching your Senior Full-Stack Engineer profile. The **Job Search Agent** surfaced 3 roles matching TypeScript & React. I've also run a **Validation Check** against your resume.",
-        timestamp: "Yesterday",
-        isOrchestration: true,
-        orchestration: {
-          isComplete: true,
-          activeStepIndex: 2,
-          steps: [
-            {
-              agentId: "job-search",
-              agentName: "Job Search Agent",
-              status: "completed",
-              details: "Queried matching API roles",
-            },
-            {
-              agentId: "validation",
-              agentName: "Validation Agent",
-              status: "completed",
-              details: "Checked ATS keyword intersection",
-            },
-          ],
-          resultType: "jobs",
-          resultData: [
-            {
-              id: "job-1",
-              role: "Senior Frontend Engineer",
-              co: "Kepler Systems",
-              loc: "London · Hybrid",
-              type: "Full-time",
-              match: 96,
-              salary: "£95k - £115k",
-              keywords: ["TypeScript", "Micro-frontends", "Performance"],
-              desc: "Seeking a Senior Engineer to lead frontend architecture and real-time design system pipelines.",
-            },
-            {
-              id: "job-3",
-              role: "Staff AI Product Engineer",
-              co: "Ostara AI",
-              loc: "San Francisco · Remote",
-              type: "Full-time",
-              match: 88,
-              salary: "$180k - $210k",
-              keywords: ["React", "TypeScript", "LLM Tooling"],
-              desc: "Lead customer-facing AI agent interfaces and interactive canvas workflows.",
-            },
-          ],
-        },
-      },
-    ],
-    lastUpdated: "Yesterday",
-  },
-];
+const agentName = (backendId: string) => getAgentByBackendId(backendId)?.name ?? backendId;
+
+function toMessage(m: ApiMessage): ChatMessage {
+  const steps = m.payload?.steps ?? [];
+  return {
+    id: m.id,
+    sender: m.role,
+    text: m.content,
+    timestamp: m.createdAt,
+    run:
+      m.role === "assistant" && (steps.length || m.payload?.agentOutputs)
+        ? {
+            steps: steps.map((s) => ({
+              agentId: s.agentId,
+              agentName: s.agentName || agentName(s.agentId),
+              status: s.status === "failed" ? "failed" : "completed",
+              summary: s.summary,
+            })),
+            isComplete: true,
+            agentOutputs: m.payload?.agentOutputs ?? {},
+          }
+        : undefined,
+  };
+}
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { profile, logActivity } = useUserProfile();
-  const [isChatActive, setChatActive] = useState<boolean>(false);
-  // Start from defaults so server and first client render match; load storage after mount.
-  const [conversations, setConversations] = useState<Conversation[]>(DEFAULT_CONVERSATIONS);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const { user, authFetch, getAccessToken } = useAuth();
+  const [isChatActive, setChatActive] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [isOrchestrating, setIsOrchestrating] = useState(false);
+  const loading = useRef(new Set<string>());
 
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(
-    DEFAULT_CONVERSATIONS[0]?.id ?? null,
+  // Load the conversation list when the signed-in ACCOUNT changes (not on every
+  // token refresh, which hands us a new user object for the same account).
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    setConversations([]);
+    setActiveConversationId(null);
+    if (!userId) return;
+    let active = true;
+    authFetch<ApiConversation[]>(API_ENDPOINTS.chat.conversations)
+      .then((res) => {
+        if (!active) return;
+        // Merge, don't replace: a message may have been sent while the list was loading,
+        // and its live run must not be wiped by the (older) server list.
+        setConversations((current) => {
+          const known = new Map(current.map((c) => [c.id, c]));
+          const fromServer = res.data.map(
+            (c): Conversation =>
+              known.get(c.id) ?? {
+                id: c.id,
+                title: c.title,
+                lastUpdated: c.updatedAt,
+                messages: [],
+                loaded: false,
+              },
+          );
+          const serverIds = new Set(res.data.map((c) => c.id));
+          return [...current.filter((c) => !serverIds.has(c.id)), ...fromServer];
+        });
+      })
+      .catch(() => active && toast.error("Couldn't load your conversations."));
+    return () => {
+      active = false;
+    };
+  }, [userId, authFetch]);
+
+  // Fetch a conversation's messages the first time it's opened.
+  useEffect(() => {
+    const id = activeConversationId;
+    if (!id || id === NEW_CONVERSATION || loading.current.has(id)) return;
+    const conversation = conversations.find((c) => c.id === id);
+    if (!conversation || conversation.loaded) return;
+    loading.current.add(id);
+    authFetch<{ messages: ApiMessage[] }>(API_ENDPOINTS.chat.conversation(id))
+      .then((res) => {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === id ? { ...c, messages: res.data.messages.map(toMessage), loaded: true } : c,
+          ),
+        );
+      })
+      .catch(() => toast.error("Couldn't load this conversation."))
+      .finally(() => loading.current.delete(id));
+  }, [activeConversationId, conversations, authFetch]);
+
+  const updateConversation = useCallback(
+    (id: string, change: (conversation: Conversation) => Conversation) => {
+      setConversations((prev) => prev.map((c) => (c.id === id ? change(c) : c)));
+    },
+    [],
   );
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: Conversation[] = JSON.parse(saved);
-        setConversations(parsed);
-        setActiveConversationId(parsed[0]?.id ?? null);
-      }
-    } catch (e) {
-      console.error("Failed to load chat history:", e);
+  const startNewConversation = useCallback((initialMessage?: string) => {
+    setConversations((prev) => prev.filter((c) => c.id !== NEW_CONVERSATION));
+    setActiveConversationId(null);
+    setChatActive(true);
+    if (initialMessage) {
+      // Defer so the reset above is applied first.
+      setTimeout(() => sendMessageRef.current?.(initialMessage), 0);
     }
-    setIsHydrated(true);
   }, []);
 
-  const [isOrchestrating, setIsOrchestrating] = useState<boolean>(false);
+  const deleteConversation = useCallback(
+    (id: string) => {
+      authFetch(API_ENDPOINTS.chat.conversation(id), { method: "DELETE" })
+        .then(() => {
+          setConversations((prev) => prev.filter((c) => c.id !== id));
+          setActiveConversationId((current) => (current === id ? null : current));
+        })
+        .catch(() => toast.error("Couldn't delete this conversation."));
+    },
+    [authFetch],
+  );
 
-  // [API] Load history from the backend instead of localStorage.
-  // GET    API_ENDPOINTS.chat.conversations              -> CONVERSATION_TEMPLATE[] (without messages)
-  // GET    API_ENDPOINTS.chat.conversation(id)           -> CONVERSATION_TEMPLATE (with messages)
-  // POST   API_ENDPOINTS.chat.conversations { title }    -> CONVERSATION_TEMPLATE
-  // DELETE API_ENDPOINTS.chat.conversation(id)           -> { deleted: true }
-  //
-  // useEffect(() => {
-  //   apiFetch<Conversation[]>(API_ENDPOINTS.chat.conversations)
-  //     .then((res) => setConversations(res.data))
-  //     .catch(console.error);
-  // }, []);
-
-  useEffect(() => {
-    if (!isHydrated) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
-    } catch (e) {
-      console.error("Failed to save chat history:", e);
-    }
-  }, [conversations, isHydrated]);
-
-  const startNewConversation = (initialMessage?: string) => {
-    const newId = `conv-${Date.now()}`;
-    const newConv: Conversation = {
-      id: newId,
-      title: initialMessage
-        ? initialMessage.length > 25
-          ? initialMessage.slice(0, 25) + "..."
-          : initialMessage
-        : "New Conversation",
-      messages: [
-        {
-          id: `msg-${Date.now()}-init`,
-          sender: "assistant",
-          text: "I'm connected to all 7 agents in your compass. How can I help you today?",
-          timestamp: "Just now",
-        },
-      ],
-      lastUpdated: "Just now",
-    };
-    setConversations((prev) => [newConv, ...prev]);
-    setActiveConversationId(newId);
-    setChatActive(true);
-  };
-
-  const deleteConversation = (id: string) => {
-    setConversations((prev) => prev.filter((c) => c.id !== id));
-    if (activeConversationId === id) {
-      const remaining = conversations.filter((c) => c.id !== id);
-      setActiveConversationId(remaining.length > 0 ? remaining[0]!.id : null);
-    }
-  };
-
-  const sendMessage = (text: string) => {
-    // [API] Replace the local intent-routing simulation below with the orchestrator.
-    // POST API_ENDPOINTS.chat.orchestrate
-    //   { conversationId: string | null, message: string }
-    // Streams (SSE / chunked JSON) one event per agent step, then a final result:
-    //   { type: "step",   step: { agentId, agentName, status, details } }
-    //   { type: "result", message: CONVERSATION_TEMPLATE.messages[0] }
-    // Non-streaming fallback: POST API_ENDPOINTS.chat.messages(conversationId)
-    //   { text } -> ChatMessage (with .orchestration populated)
-    //
-    // const res = await apiFetch<typeof CONVERSATION_TEMPLATE.messages[0]>(
-    //   API_ENDPOINTS.chat.messages(convId), { method: "POST", body: JSON.stringify({ text }) });
-
-    const cleanText = text.trim();
-    if (!cleanText) return;
-
-    let convId = activeConversationId;
-    if (!convId) {
-      convId = `conv-${Date.now()}`;
-      const newConv: Conversation = {
-        id: convId,
-        title: cleanText.length > 25 ? cleanText.slice(0, 25) + "..." : cleanText,
-        messages: [],
-        lastUpdated: "Just now",
+  const sendMessage = useCallback(
+    (text: string) => {
+      if (isOrchestrating || !text.trim()) return;
+      const existingId =
+        activeConversationId && activeConversationId !== NEW_CONVERSATION
+          ? activeConversationId
+          : null;
+      let conversationId = existingId ?? NEW_CONVERSATION;
+      const now = new Date().toISOString();
+      const assistantId = crypto.randomUUID();
+      const userMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        sender: "user",
+        text,
+        timestamp: now,
       };
-      setConversations((prev) => [newConv, ...prev]);
-      setActiveConversationId(convId);
-    }
+      const placeholder: ChatMessage = {
+        id: assistantId,
+        sender: "assistant",
+        text: "",
+        timestamp: now,
+        run: { steps: [], isComplete: false, agentOutputs: {} },
+      };
 
-    const timestamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const userMsg: ChatMessage = {
-      id: `msg-${Date.now()}-user`,
-      sender: "user",
-      text: cleanText,
-      timestamp,
-    };
-
-    // Update conversation with user message
-    setConversations((prev) =>
-      prev.map((c) => {
-        if (c.id === convId) {
-          const isNewTitle =
-            c.title === "New Conversation" ||
-            c.messages.length === 0 ||
-            (c.messages.length === 1 && c.messages[0]!.id.includes("init"));
-          return {
-            ...c,
-            title: isNewTitle
-              ? cleanText.length > 25
-                ? cleanText.slice(0, 25) + "..."
-                : cleanText
-              : c.title,
-            messages: [...c.messages, userMsg],
-            lastUpdated: "Just now",
-          };
-        }
-        return c;
-      }),
-    );
-
-    // Intent Routing analysis
-    const queryLower = cleanText.toLowerCase();
-    let selectedAgents: OrchestrationStep[] = [];
-    let resultType: OrchestrationData["resultType"] = "text";
-    let resultData: any = null;
-
-    if (
-      queryLower.includes("job") ||
-      queryLower.includes("search") ||
-      queryLower.includes("find") ||
-      queryLower.includes("kepler") ||
-      queryLower.includes("work")
-    ) {
-      selectedAgents = [
-        {
-          agentId: "job-search",
-          agentName: "Job Search Agent",
-          status: "idle",
-          details: "Scanning for matching roles...",
-        },
-        {
-          agentId: "resume",
-          agentName: "Resume Agent",
-          status: "idle",
-          details: "Aligning CV to target roles...",
-        },
-        {
-          agentId: "validation",
-          agentName: "Validation Agent",
-          status: "idle",
-          details: "Checking ATS compliance...",
-        },
-      ];
-      resultType = "jobs";
-      resultData = [
-        {
-          id: "job-1",
-          role: "Senior Frontend Engineer",
-          co: "Kepler Systems",
-          loc: "London · Hybrid",
-          type: "Full-time",
-          match: 96,
-          salary: "£95k - £115k",
-          keywords: ["TypeScript", "Micro-frontends", "Performance", "System Architecture"],
-          desc: "Seeking a Senior Engineer to lead frontend architecture and real-time design system pipelines.",
-        },
-        {
-          id: "job-2",
-          role: "Platform Engineer",
-          co: "Northwind Labs",
-          loc: "Remote (EU/US)",
-          type: "Full-time",
-          match: 91,
-          salary: "$165k - $190k",
-          keywords: ["Python", "Kubernetes", "DevOps", "AI Infrastructure"],
-          desc: "Build scalable cloud orchestration and agent evaluation frameworks for high-throughput AI workloads.",
-        },
-        {
-          id: "job-3",
-          role: "Staff AI Product Engineer",
-          co: "Ostara AI",
-          loc: "San Francisco · Remote",
-          type: "Full-time",
-          match: 88,
-          salary: "$180k - $210k",
-          keywords: ["React", "TypeScript", "LLM Tooling", "Product Design"],
-          desc: "Lead customer-facing AI agent interfaces and interactive canvas workflows.",
-        },
-      ];
-    } else if (
-      queryLower.includes("resume") ||
-      queryLower.includes("cv") ||
-      queryLower.includes("validation") ||
-      queryLower.includes("check") ||
-      queryLower.includes("formatting") ||
-      queryLower.includes("ats")
-    ) {
-      selectedAgents = [
-        {
-          agentId: "resume",
-          agentName: "Resume Agent",
-          status: "idle",
-          details: "Retrieving current resume parser data...",
-        },
-        {
-          agentId: "validation",
-          agentName: "Validation Agent",
-          status: "idle",
-          details: "Auditing layout, section headers, and formatting...",
-        },
-      ];
-      resultType = "validation";
-      resultData = [
-        { label: "Contact block parsable", state: "pass", note: "Email and phone detected" },
-        { label: "Reverse-chronological order", state: "pass", note: "Consistent across roles" },
-        { label: "Bullet length", state: "warn", note: "Two bullets exceed 24 words" },
-        {
-          label: "Keyword coverage vs. target roles",
-          state: "pass",
-          note: "TypeScript, React, System Design covered",
-        },
-        { label: "No tables or text boxes", state: "pass", note: "Clean single-column layout" },
-        {
-          label: "Quantified impact",
-          state: "pass",
-          note: "Metrics verified across bullet points",
-        },
-      ];
-    } else if (
-      queryLower.includes("roadmap") ||
-      queryLower.includes("path") ||
-      queryLower.includes("plan") ||
-      queryLower.includes("milestone") ||
-      queryLower.includes("growth")
-    ) {
-      selectedAgents = [
-        {
-          agentId: "roadmap",
-          agentName: "Personalized Roadmap",
-          status: "idle",
-          details: "Structuring growth trajectory milestones...",
-        },
-        {
-          agentId: "advisor",
-          agentName: "Career Advisor",
-          status: "idle",
-          details: "Evaluating technical skill gaps...",
-        },
-      ];
-      resultType = "roadmap";
-      resultData = [
-        { title: "Sharpen system design", when: "Weeks 1–3", note: "Two design reviews per week." },
-        {
-          title: "Ship a public project",
-          when: "Weeks 4–7",
-          note: "Something infra-flavoured and small.",
-        },
-        {
-          title: "Targeted applications",
-          when: "Weeks 8–10",
-          note: "Twelve roles, all senior scope.",
-        },
-        { title: "Interview loops", when: "Weeks 11–14", note: "Expect three onsite processes." },
-      ];
-    } else if (
-      queryLower.includes("interview") ||
-      queryLower.includes("prep") ||
-      queryLower.includes("practice") ||
-      queryLower.includes("question")
-    ) {
-      selectedAgents = [
-        {
-          agentId: "interview",
-          agentName: "Interview Preparation",
-          status: "idle",
-          details: "Retrieving custom interview banks...",
-        },
-        {
-          agentId: "advisor",
-          agentName: "Career Advisor",
-          status: "idle",
-          details: "Formulating mock parameters...",
-        },
-      ];
-      resultType = "interview";
-      resultData = [
-        "Walk me through a system you designed end to end.",
-        "Describe a time you disagreed with a technical decision.",
-        "How would you cut p95 latency on a read-heavy API?",
-        "What trade-offs did your last migration force?",
-        "How do you decide what not to build?",
-      ];
-    } else {
-      selectedAgents = [
-        {
-          agentId: "advisor",
-          agentName: "Career Advisor",
-          status: "idle",
-          details: "Analyzing query in profile context...",
-        },
-      ];
-      resultType = "text";
-      resultData =
-        "Your career pipeline is fully sync'd! You can tell me to search for jobs, validate your resume, build a milestone roadmap, or run a practice interview. What agent shall we invoke?";
-    }
-
-    // Set orchestrating state
-    setIsOrchestrating(true);
-
-    const orchestrationId = `msg-${Date.now()}-orchestration`;
-    const initialOrchMsg: ChatMessage = {
-      id: orchestrationId,
-      sender: "assistant",
-      text: "Routing intent via Orchestrator...",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      isOrchestration: true,
-      orchestration: {
-        steps: selectedAgents.map((s, idx) => (idx === 0 ? { ...s, status: "running" } : s)),
-        activeStepIndex: 0,
-        isComplete: false,
-        resultType,
-      },
-    };
-
-    // Add orchestration message
-    setConversations((prev) =>
-      prev.map((c) => {
-        if (c.id === convId) {
-          return {
-            ...c,
-            messages: [...c.messages, initialOrchMsg],
-          };
-        }
-        return c;
-      }),
-    );
-
-    // Simulate multi-agent execution step-by-step
-    let currentStep = 0;
-
-    const runNextStep = () => {
-      setTimeout(() => {
-        currentStep++;
-        if (currentStep < selectedAgents.length) {
-          // Advance step
-          setConversations((prev) =>
-            prev.map((c) => {
-              if (c.id === convId) {
-                return {
-                  ...c,
-                  messages: c.messages.map((m) => {
-                    if (m.id === orchestrationId && m.orchestration) {
-                      const updatedSteps = m.orchestration.steps.map((s, idx) => {
-                        if (idx === currentStep - 1)
-                          return {
-                            ...s,
-                            status: "completed" as const,
-                            details: s.details.replace("...", "") + " (Success)",
-                          };
-                        if (idx === currentStep) return { ...s, status: "running" as const };
-                        return s;
-                      });
-                      return {
-                        ...m,
-                        orchestration: {
-                          ...m.orchestration,
-                          activeStepIndex: currentStep,
-                          steps: updatedSteps,
-                        },
-                      };
-                    }
-                    return m;
-                  }),
-                };
-              }
-              return c;
-            }),
+      setConversations((prev) => {
+        if (existingId) {
+          return prev.map((c) =>
+            c.id === existingId ? { ...c, messages: [...c.messages, userMessage, placeholder] } : c,
           );
-          runNextStep();
-        } else {
-          // Complete orchestration
+        }
+        const draft: Conversation = {
+          id: NEW_CONVERSATION,
+          title: text.length > 60 ? `${text.slice(0, 57)}…` : text,
+          lastUpdated: now,
+          messages: [userMessage, placeholder],
+          loaded: true,
+        };
+        return [draft, ...prev.filter((c) => c.id !== NEW_CONVERSATION)];
+      });
+      setActiveConversationId(conversationId);
+      setChatActive(true);
+      setIsOrchestrating(true);
+
+      const patchRun = (change: (run: AgentRun, message: ChatMessage) => Partial<ChatMessage>) =>
+        updateConversation(conversationId, (c) => ({
+          ...c,
+          messages: c.messages.map((m) =>
+            m.id === assistantId && m.run ? { ...m, ...change(m.run, m) } : m,
+          ),
+        }));
+
+      const onEvent = (event: OrchestrateEvent) => {
+        switch (event.type) {
+          case "conversation":
+            if (conversationId === NEW_CONVERSATION) {
+              const realId = event.conversationId;
+              setConversations((prev) =>
+                prev.map((c) => (c.id === NEW_CONVERSATION ? { ...c, id: realId } : c)),
+              );
+              setActiveConversationId(realId);
+              conversationId = realId;
+            }
+            break;
+          case "plan":
+            patchRun((run) => ({
+              run: {
+                ...run,
+                steps: event.plan.flat().map((id) => ({
+                  agentId: id,
+                  agentName: agentName(id),
+                  status: "pending" as const,
+                })),
+              },
+            }));
+            break;
+          case "step":
+            patchRun((run) => ({
+              run: {
+                ...run,
+                steps: run.steps.map((s) =>
+                  s.agentId === event.agentId
+                    ? { ...s, status: event.status, summary: event.summary ?? s.summary }
+                    : s,
+                ),
+              },
+            }));
+            break;
+          case "answer":
+            patchRun((run) => ({
+              text: event.answer,
+              run: { ...run, isComplete: true, agentOutputs: event.agentOutputs },
+            }));
+            break;
+          case "error":
+            patchRun((run) => ({ run: { ...run, isComplete: true, error: event.message } }));
+            break;
+          default:
+            break;
+        }
+      };
+
+      const run = async () => {
+        let token = getAccessToken();
+        const body = { message: text, conversationId: existingId };
+        try {
+          if (!token) throw new ApiRequestError(401, "TOKEN_MISSING", "Not signed in");
+          await streamOrchestrate(body, token, onEvent);
+        } catch (error) {
+          if (error instanceof ApiRequestError && error.status === 401) {
+            // Access token expired mid-session: refresh (authFetch does it) and retry once.
+            await authFetch(API_ENDPOINTS.auth.session).catch(() => undefined);
+            token = getAccessToken();
+            if (token) {
+              await streamOrchestrate(body, token, onEvent);
+              return;
+            }
+          }
+          throw error;
+        }
+      };
+
+      run()
+        .catch((error) => {
+          const message =
+            error instanceof ApiRequestError ? error.message : "The agents hit a problem.";
+          patchRun((r) => ({ run: { ...r, isComplete: true, error: message } }));
+          toast.error(message);
+        })
+        .finally(() => {
           setIsOrchestrating(false);
-          setConversations((prev) =>
-            prev.map((c) => {
-              if (c.id === convId) {
-                return {
-                  ...c,
-                  messages: c.messages.map((m) => {
-                    if (m.id === orchestrationId && m.orchestration) {
-                      const finalSteps = m.orchestration.steps.map((s) => ({
-                        ...s,
-                        status: "completed" as const,
-                        details: s.details.replace("...", "") + " (Success)",
-                      }));
+          updateConversation(conversationId, (c) => ({
+            ...c,
+            lastUpdated: new Date().toISOString(),
+          }));
+        });
+    },
+    [isOrchestrating, activeConversationId, updateConversation, getAccessToken, authFetch],
+  );
 
-                      let finalResponse = "";
-                      if (resultType === "jobs") {
-                        finalResponse = `I orchestrated a target role scan. The **Job Search Agent** found 3 new openings matching your skills. The **Resume Agent** and **Validation Agent** evaluated your credentials for optimization.`;
-                        logActivity({
-                          type: "job_searched",
-                          title: `Assistant searched: "${cleanText}"`,
-                          details: `Found 3 matched roles for ${profile.title}.`,
-                        });
-                      } else if (resultType === "validation") {
-                        finalResponse = `I ran the **Validation Agent** check on your resume. Here are the compliance check results. Please optimize the bullet points identified.`;
-                        logActivity({
-                          type: "profile_updated",
-                          title: "Assistant checked Resume Validation",
-                          details: "Completed layout and parsing tests.",
-                        });
-                      } else if (resultType === "roadmap") {
-                        finalResponse = `I structured your 14-week **Personalized Roadmap** focusing on target milestones.`;
-                      } else if (resultType === "interview") {
-                        finalResponse = `I pulled 5 custom mock questions from the **Interview Prep Agent** banks.`;
-                      } else {
-                        finalResponse = resultData;
-                      }
-
-                      return {
-                        ...m,
-                        text: finalResponse,
-                        orchestration: {
-                          ...m.orchestration,
-                          isComplete: true,
-                          steps: finalSteps,
-                          resultData,
-                        },
-                      };
-                    }
-                    return m;
-                  }),
-                };
-              }
-              return c;
-            }),
-          );
-        }
-      }, 1000);
-    };
-
-    runNextStep();
-  };
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
 
   return (
     <ChatContext.Provider

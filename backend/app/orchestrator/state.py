@@ -10,7 +10,8 @@ agents in parallel: both updates merge, neither overwrites the other.
     steps           append               every agent run (the UI's step list)
     memory_writes   append               facts agents proposed; saved after the run
     errors          append               failures, so the run continues and reports them
-    (others)        last write wins      request, plan, profile, memories, history, answer
+    (others)        last write wins      request, plan, profile, memories, graph_insights,
+                                         history, answer
 """
 
 from __future__ import annotations
@@ -50,11 +51,13 @@ class CareerState(TypedDict, total=False):
     user_id: str
     run_id: str
     request: str
+    requested_agents: list[str]  # set by an agent's own page; empty = let the planner decide
     profile: dict[str, Any]
     history: list[dict[str, str]]  # recent messages, loaded from the database each turn
 
     # Set by the graph
     memories: list[str]
+    graph_insights: str  # shared knowledge-graph aggregates around this user's roles/skills
     plan: list[list[str]]  # stages; agents inside one stage run in parallel
     answer: str
 

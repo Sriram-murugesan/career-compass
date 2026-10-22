@@ -18,6 +18,7 @@ from app.core import security
 from app.core.config import Settings
 from app.core.errors import Unauthorized
 from app.db.dependencies import get_app_settings, get_session
+from app.modules.auth.google import GoogleTokenVerifier
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.service import AuthService, AuthSettings, ClientInfo
 
@@ -36,6 +37,12 @@ def get_auth_service(
             refresh_token_ttl_days=settings.refresh_token_ttl_days,
         ),
     )
+
+
+def get_google_verifier(request: Request) -> GoogleTokenVerifier:
+    """One verifier per process (created in main.py) so Google's keys stay cached."""
+    verifier: GoogleTokenVerifier = request.app.state.google_verifier
+    return verifier
 
 
 def get_current_user_id(

@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app import endpoints as ep
 from app.core.config import Settings
+from app.core.errors import Unauthorized, Unavailable
 from app.core.rate_limit import RateLimiter
 from app.core.responses import Envelope, fail_body, ok
 from app.db.dependencies import get_app_settings
@@ -18,10 +19,13 @@ from app.modules.auth.dependencies import (
     CurrentUserId,
     client_info,
     get_auth_service,
+    get_google_verifier,
 )
+from app.modules.auth.google import GoogleTokenInvalid, GoogleTokenVerifier
 from app.modules.auth.schemas import (
     AuthSession,
     CurrentUserResponse,
+    GoogleSignInRequest,
     SignedOut,
     SignInRequest,
     SignUpRequest,
@@ -81,6 +85,35 @@ async def sign_up(
 ) -> Envelope[AuthSession]:
     issued = await service.sign_up(body, client_info(request))
     logger.info("user signed up", extra={"context": {"userId": str(issued.session.user.id)}})
+    _set_refresh_cookie(response, issued, settings)
+    return ok(issued.session)
+
+
+@router.post(ep.AUTH_GOOGLE, dependencies=[RateLimit], response_model=Envelope[AuthSession])
+async def sign_in_with_google(
+    body: GoogleSignInRequest,
+    request: Request,
+    response: Response,
+    service: Service,
+    verifier: Annotated[GoogleTokenVerifier, Depends(get_google_verifier)],
+    settings: AppSettings,
+) -> Envelope[AuthSession]:
+    """Exchange a Google ID token (from the Google button) for our session."""
+    if not verifier.enabled:
+        raise Unavailable(
+            "Google sign-in is not configured on this server", code="GOOGLE_SIGN_IN_DISABLED"
+        )
+    try:
+        identity = await verifier.verify(body.credential)
+    except GoogleTokenInvalid as exc:
+        logger.info("rejected google credential", extra={"context": {"reason": str(exc)[:120]}})
+        raise Unauthorized(
+            "Google sign-in failed — please try again", code="GOOGLE_TOKEN_INVALID"
+        ) from exc
+    issued = await service.sign_in_with_google(identity, client_info(request))
+    logger.info(
+        "user signed in with google", extra={"context": {"userId": str(issued.session.user.id)}}
+    )
     _set_refresh_cookie(response, issued, settings)
     return ok(issued.session)
 

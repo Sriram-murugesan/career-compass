@@ -111,7 +111,8 @@ class LlmGateway:
                 response = await self._client.post(
                     f"{entry.base_url}/chat/completions",
                     json=payload,
-                    headers={"Authorization": f"Bearer {entry.api_key}"},
+                    # Provider extras (e.g. OpenRouter's X-Title) first; auth can't be overridden.
+                    headers={**entry.extra_headers, "Authorization": f"Bearer {entry.api_key}"},
                 )
             except httpx.HTTPError as exc:
                 self._record_failure(entry, f"transport error: {type(exc).__name__}")

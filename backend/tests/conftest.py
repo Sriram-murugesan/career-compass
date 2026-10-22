@@ -32,6 +32,7 @@ def make_settings(db_dir: Path, **overrides: Any) -> Settings:
         "database_url": f"sqlite+aiosqlite:///{(db_dir / 'test.db').as_posix()}",
         "auth_rate_limit_per_minute": 1000,
         "cors_origins": ["http://localhost:3000"],
+        "job_boards": [],  # tests never call real job APIs; opt in per test with a transport
         **overrides,
     }
     return Settings(_env_file=None, **values)  # _env_file=None: never read backend/.env
@@ -56,10 +57,19 @@ class Harness:
 
 @asynccontextmanager
 async def running_app(
-    settings: Settings, llm_transport: httpx.AsyncBaseTransport | None = None
+    settings: Settings,
+    llm_transport: httpx.AsyncBaseTransport | None = None,
+    google_keys: Any = None,
+    jobs_transport: httpx.AsyncBaseTransport | None = None,
 ) -> AsyncIterator[Harness]:
     logs = io.StringIO()
-    app = create_app(settings, log_stream=logs, llm_transport=llm_transport)
+    app = create_app(
+        settings,
+        log_stream=logs,
+        llm_transport=llm_transport,
+        google_keys=google_keys,
+        jobs_transport=jobs_transport,
+    )
     async with app.router.lifespan_context(app):  # runs startup: migrations, LLM pool, agents
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:

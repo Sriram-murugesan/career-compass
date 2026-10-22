@@ -38,6 +38,34 @@ class LlmClient(Protocol):
 
 
 @dataclass(frozen=True)
+class JobListing:
+    """A real job posting from a job board. Agents may rank it, never rewrite its facts."""
+
+    id: str
+    title: str
+    company: str
+    location: str
+    description: str  # short snippet
+    apply_url: str
+    posted_at: str | None = None  # ISO date from the board
+    salary: str | None = None
+    contract: str | None = None  # "full_time", "contract", …
+    source: str = ""  # "jobicy", "remotive", "adzuna"
+
+
+class JobBoardUnavailable(Exception):
+    """The job board couldn't be reached or rejected the request."""
+
+
+class JobBoard(Protocol):
+    """Live job search, injected into agents (no agent makes HTTP calls itself)."""
+
+    name: str
+
+    async def search(self, query: str, location: str, *, limit: int = 10) -> list[JobListing]: ...
+
+
+@dataclass(frozen=True)
 class MemoryFact:
     """A durable fact about the user, e.g. kind="preference", content="Prefers remote roles"."""
 
@@ -54,6 +82,7 @@ class AgentContext:
     recent_messages: list[dict[str, str]]
     rendered: str  # all of the above as one prompt block, already trimmed to the token budget
     llm: LlmClient
+    job_board: JobBoard | None = None  # None when no job-listings API is configured
 
 
 @dataclass(frozen=True)
@@ -70,7 +99,9 @@ class AgentSpec:
     name: str
     description: str  # the supervisor reads this when planning
     run: Callable[[AgentContext], Awaitable[AgentResult]]
-    reads: tuple[str, ...] = ()  # other agents' outputs this agent consumes
+    reads: tuple[str, ...] = ()  # other agents' outputs this agent uses when available
+    # Subset of `reads` that must exist first: run alongside when this agent is run directly.
+    requires: tuple[str, ...] = ()
     keywords: tuple[str, ...] = ()  # fallback routing when no LLM is configured
 
 

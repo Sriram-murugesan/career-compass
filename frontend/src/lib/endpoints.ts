@@ -25,6 +25,7 @@ export const PAGE_ROUTES = {
   setup: "/setup", // onboarding wizard
   dashboard: "/dashboard", // agent pipeline + orchestrator chat
   profile: "/profile", // profile hub
+  graph: "/graph", // shared career knowledge graph
   agent: (agentId: string) => `/agents/${agentId}`, // one agent's workspace
 } as const;
 
@@ -44,12 +45,15 @@ export const API_ENDPOINTS = {
   auth: {
     signUp: "/api/auth/sign-up", // [live] POST public { name, email, password } -> AuthSession + cookie
     signIn: "/api/auth/sign-in", // [live] POST public { email, password } -> AuthSession + cookie
+    google: "/api/auth/google", // [live] POST public { credential: Google ID token } -> AuthSession + cookie
     refresh: "/api/auth/refresh", // [live] POST cookie -> AuthSession + rotated cookie
     signOut: "/api/auth/sign-out", // [live] POST cookie -> { signedOut: true }
     session: "/api/auth/session", // [live] GET bearer -> { user }
   },
 
   profile: {
+    // Profile: headline, bio, location, targetSalary, workPreference, experienceLevel,
+    //          targetRoles, skills, interests, goals, aiPreferences
     get: "/api/profile", // [live] GET bearer -> Profile
     update: "/api/profile", // [live] PATCH bearer Partial<Profile> -> Profile
     completion: "/api/profile/completion", // [planned] GET bearer -> { completionPercentage }
@@ -65,10 +69,38 @@ export const API_ENDPOINTS = {
 
   chat: {
     conversations: "/api/chat/conversations", // [live] GET bearer -> Conversation[] | POST { title } -> Conversation
-    conversation: (id: string) => `/api/chat/conversations/${id}`, // [live] GET bearer -> Conversation + messages
-    // [live] POST bearer { message, conversationId? } -> text/event-stream:
+    conversation: (id: string) => `/api/chat/conversations/${id}`, // [live] GET bearer -> Conversation + messages | DELETE
+    // [live] POST bearer { message, conversationId?, agents?: ["interview"] } -> text/event-stream:
+    //   (agents = run exactly these backend agents plus what they require; omit to let the planner pick)
     //   conversation | plan | step (running/completed/failed) | answer | memory | done | error
     orchestrate: "/api/chat/orchestrate",
+  },
+
+  // Mock interview tests: generated for one role + domain; the answer key stays on the
+  // server and grading an attempt returns the score instantly (no LLM).
+  interview: {
+    mockTests: "/api/interview/mock-tests", // [live] GET bearer -> MockTestSummary[] | POST { role?, domain?, difficulty, count } -> MockTest
+    mockTest: (id: string) => `/api/interview/mock-tests/${id}`, // [live] GET bearer -> MockTest (no answers) + attempts
+    attempts: (id: string) => `/api/interview/mock-tests/${id}/attempts`, // [live] POST bearer { answers, timeTakenSeconds } -> AttemptResult
+  },
+
+  // Productivity tracker: habits + daily check-ins, no agent run. `today` is the user's
+  // LOCAL date (YYYY-MM-DD) so check-ins land on the right day in every time zone.
+  productivity: {
+    overview: "/api/productivity/overview", // [live] GET bearer ?today= -> { habits, doneToday, weekCompletion, heatmap, learning, scoreTrend }
+    habits: "/api/productivity/habits", // [live] POST bearer { name?, category, targetPerWeek, targetMinutes?, linkedTopic? } -> Habit
+    habit: (id: string) => `/api/productivity/habits/${id}`, // [live] PATCH { name?, targetPerWeek?, archived? } | DELETE
+    log: (id: string, day: string) => `/api/productivity/habits/${id}/logs/${day}`, // [live] PUT ?today= { minutes?, note? } | DELETE
+  },
+
+  // Shared knowledge graph: anonymous aggregates from all users (an edge from profiles is
+  // shown only when >= minUsers people back it) + real job postings. `me` adds YOUR links.
+  graph: {
+    me: "/api/graph/me", // [live] GET bearer -> { links, roles, adjacentSkills, minUsers }
+    node: (kind: string, key: string) =>
+      `/api/graph/nodes/${encodeURIComponent(kind)}/${encodeURIComponent(key)}`, // [live] GET bearer -> { node, groups }
+    search: "/api/graph/search", // [live] GET bearer ?q=&kind=skill|role|company -> Node[]
+    paths: "/api/graph/paths", // [live] GET bearer ?role= -> { role, paths: Node[][] }
   },
 
   resume: {

@@ -17,7 +17,13 @@ class User(UuidPrimaryKey, Timestamps, Base):
     name: Mapped[str] = mapped_column(String(100))
     # Stored lower-cased (normalised by the request schema); unique index enforces one account.
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+    # None for accounts created with Google that never set a password.
+    password_hash: Mapped[str | None] = mapped_column(String(255), default=None)
+    # Google's stable account id ("sub"); set on first Google sign-in, unique per account.
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, default=None)
+    avatar_url: Mapped[str | None] = mapped_column(String(1024), default=None)
+    # True once someone proved they own the address (today: a Google sign-in for it).
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
 
 

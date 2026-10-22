@@ -40,11 +40,19 @@ class SignInRequest(ApiModel):
         return value.lower()
 
 
+class GoogleSignInRequest(ApiModel):
+    # The ID token (JWT) the "Sign in with Google" button hands the browser.
+    credential: str = Field(min_length=20, max_length=4096)
+
+
 class AuthUser(ApiModel):
     id: uuid.UUID
     name: str
     email: str
     is_onboarded: bool
+    avatar_url: str | None = None
+    has_password: bool = True  # False for Google-only accounts
+    google_linked: bool = False
 
 
 class AuthSession(ApiModel):

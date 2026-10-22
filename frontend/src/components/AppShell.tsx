@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Chatbot } from "./Chatbot";
 import { AnimatedLines } from "./AnimatedLines";
+import { RequireAuth } from "./RequireAuth";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 function CompassMark() {
@@ -87,7 +89,23 @@ function CompassMark() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  // Every page that uses AppShell is a signed-in page.
+  return (
+    <RequireAuth>
+      <ShellLayout>{children}</ShellLayout>
+    </RequireAuth>
+  );
+}
+
+function ShellLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace("/");
+  };
 
   return (
     <div className="relative min-h-screen bg-background">
@@ -127,9 +145,33 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               Profile
             </Link>
-            <Link href="/" className="transition-colors duration-300 hover:text-ink">
-              Sign out
+            <Link
+              href="/graph"
+              className={cn(
+                "transition-colors duration-300 hover:text-ink",
+                pathname === "/graph" && "text-foreground",
+              )}
+            >
+              Graph
             </Link>
+            {user?.avatarUrl ? (
+              // Google avatars are on Google's CDN; a plain <img> avoids image-domain config.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.avatarUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="h-7 w-7 rounded-full border border-border"
+              />
+            ) : null}
+            <button
+              type="button"
+              onClick={handleSignOut}
+              title={user ? `Signed in as ${user.email}` : undefined}
+              className="transition-colors duration-300 hover:text-ink"
+            >
+              Sign out
+            </button>
           </nav>
         </div>
       </header>

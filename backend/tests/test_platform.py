@@ -135,6 +135,24 @@ def test_redaction_scrubs_keys_and_patterns() -> None:
     assert "zzz" not in scrubbed["note"]
 
 
+def test_redaction_keeps_llm_token_counts_but_hides_tokens() -> None:
+    scrubbed = redact(
+        {"promptTokens": 120, "completion_tokens": 45, "accessToken": "abc", "refreshToken": "x"}
+    )
+    assert scrubbed["promptTokens"] == 120 and scrubbed["completion_tokens"] == 45
+    assert scrubbed["accessToken"] == "[REDACTED]" and scrubbed["refreshToken"] == "[REDACTED]"
+
+
+def test_redaction_scrubs_openrouter_keys_and_database_passwords() -> None:
+    line = redact(
+        "using sk-or-v1-0123456789abcdef and "
+        "postgresql://neondb_owner:npg_S3cret@ep-x-pooler.neon.tech/neondb?sslmode=require"
+    )
+    assert "sk-or-v1-0123456789abcdef" not in line
+    assert "npg_S3cret" not in line
+    assert "postgresql://neondb_owner:[REDACTED]@ep-x-pooler.neon.tech" in line  # host kept
+
+
 async def test_auth_routes_are_rate_limited(tmp_path: Path) -> None:
     async with running_app(make_settings(tmp_path, auth_rate_limit_per_minute=3)) as h:
         payload = {"email": "a@b.co", "password": "x"}

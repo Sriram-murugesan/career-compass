@@ -28,6 +28,7 @@ class Health(ApiModel):
     database: str
     uptime_seconds: int
     llm_entries: list[LlmEntryStatus]
+    job_board: str | None  # e.g. "jobicy+remotive"; None = suggestions only
 
 
 @router.get(ep.HEALTH, response_model=Envelope[Health])
@@ -42,5 +43,6 @@ async def health(
             database="up" if database_up else "down",
             uptime_seconds=int(time.monotonic() - _STARTED),
             llm_entries=[LlmEntryStatus(**entry) for entry in request.app.state.llm.status()],
+            job_board=getattr(request.app.state.job_board, "name", None),
         )
     )

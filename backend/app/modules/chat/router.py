@@ -19,6 +19,7 @@ from app.modules.chat.schemas import (
     ConversationDetail,
     ConversationOut,
     CreateConversation,
+    Deleted,
     OrchestrateRequest,
 )
 from app.modules.chat.service import ChatService
@@ -54,6 +55,14 @@ async def get_conversation(
     return ok(await service.get_conversation(user_id, conversation_id))
 
 
+@router.delete(ep.CHAT_CONVERSATION, response_model=Envelope[Deleted])
+async def delete_conversation(
+    conversation_id: uuid.UUID, user_id: CurrentUserId, service: Service
+) -> Envelope[Deleted]:
+    await service.delete_conversation(user_id, conversation_id)
+    return ok(Deleted())
+
+
 @router.post(ep.CHAT_ORCHESTRATE)
 async def orchestrate(
     body: OrchestrateRequest, user_id: CurrentUserId, service: Service
@@ -69,7 +78,7 @@ async def orchestrate(
 
     async def events() -> AsyncIterator[str]:
         async for event in service.stream_turn(
-            user_id, conversation_id, body.message, profile, history
+            user_id, conversation_id, body.message, profile, history, body.agents
         ):
             yield _sse(event)
 

@@ -21,7 +21,11 @@ class Profile(Base):
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     headline: Mapped[str] = mapped_column(String(200), default="")
+    bio: Mapped[str] = mapped_column(String(1000), default="", server_default="")
     location: Mapped[str] = mapped_column(String(200), default="")
+    target_salary: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    # "Remote" | "Hybrid" | "Onsite" | "" (not set)
+    work_preference: Mapped[str] = mapped_column(String(20), default="", server_default="")
     experience_level: Mapped[str] = mapped_column(String(100), default="")
     target_roles: Mapped[list[str]] = mapped_column(JSON, default=list)
     skills: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)

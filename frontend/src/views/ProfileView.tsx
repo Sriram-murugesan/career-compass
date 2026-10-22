@@ -26,7 +26,7 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { OutlineIcon } from "@/components/OutlineIcon";
 import { LineButton } from "@/components/LineButton";
-import { useUserProfile, type TailoredResumeItem } from "@/context/UserProfileContext";
+import { formatDate, useUserProfile, type TailoredResumeItem } from "@/context/UserProfileContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -64,7 +64,6 @@ export function ProfilePage() {
     updateProfile,
     addSkill,
     removeSkill,
-    uploadResumeSimulated,
     deleteTailoredResume,
     completionPercentage,
   } = useUserProfile();
@@ -103,11 +102,42 @@ export function ProfilePage() {
   const [newGoalText, setNewGoalText] = useState("");
   const [newInterestText, setNewInterestText] = useState("");
 
+  const openEditProfile = (open: boolean) => {
+    if (open) {
+      setEditForm({
+        name: profile.name,
+        email: profile.email,
+        title: profile.title,
+        bio: profile.bio,
+        location: profile.location,
+        targetSalary: profile.targetSalary,
+        workPreference: profile.workPreference,
+        experienceLevel: profile.experienceLevel,
+      });
+    }
+    setIsEditOpen(open);
+  };
+
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile(editForm);
+    // Name and email belong to the account and aren't editable here.
+    const { name: _name, email: _email, ...profileFields } = editForm;
+    updateProfile(profileFields);
     setIsEditOpen(false);
-    toast.success("Profile details updated.");
+    toast.success("Profile details saved.");
+  };
+
+  // AI preferences: edit locally, save once.
+  const [focusDraft, setFocusDraft] = useState<string | null>(null);
+  const saveAiPreferences = () => {
+    updateProfile({
+      aiPreferences: {
+        ...profile.aiPreferences,
+        focusArea: focusDraft ?? profile.aiPreferences.focusArea,
+      },
+    });
+    setFocusDraft(null);
+    toast.success("AI preferences saved.");
   };
 
   const handleAddSkillSubmit = (e: React.FormEvent) => {
@@ -168,7 +198,10 @@ export function ProfilePage() {
               {profile.name}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              {profile.title} · {profile.location} · {profile.workPreference}
+              {[profile.title, profile.location, profile.workPreference]
+                .filter(Boolean)
+                .join(" · ") ||
+                "Add your headline, location and work preference with Edit Profile."}
             </p>
             {profile.bio && (
               <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{profile.bio}</p>
@@ -176,7 +209,7 @@ export function ProfilePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 self-start">
-            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+            <Dialog open={isEditOpen} onOpenChange={openEditProfile}>
               <DialogTrigger asChild>
                 <LineButton variant="outline" className="gap-2 text-xs">
                   <OutlineIcon icon={Edit3} size={15} />
@@ -197,7 +230,8 @@ export function ProfilePage() {
                     <input
                       type="text"
                       value={editForm.name}
-                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      readOnly
+                      title="Managed by your account"
                       className="mt-2 w-full border-b border-border bg-transparent pb-2 text-sm outline-none focus:border-ink"
                       required
                     />
@@ -222,7 +256,8 @@ export function ProfilePage() {
                       <input
                         type="email"
                         value={editForm.email}
-                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                        readOnly
+                        title="Managed by your account"
                         className="mt-2 w-full border-b border-border bg-transparent pb-2 text-sm outline-none focus:border-ink"
                       />
                     </div>
@@ -259,11 +294,12 @@ export function ProfilePage() {
                         onChange={(e) =>
                           setEditForm({
                             ...editForm,
-                            workPreference: e.target.value as "Remote" | "Hybrid" | "Onsite",
+                            workPreference: e.target.value as "Remote" | "Hybrid" | "Onsite" | "",
                           })
                         }
                         className="mt-2 w-full border-b border-border bg-transparent pb-2 text-sm outline-none focus:border-ink"
                       >
+                        <option value="">Not set</option>
                         <option value="Remote">Remote</option>
                         <option value="Hybrid">Hybrid</option>
                         <option value="Onsite">Onsite</option>
@@ -323,9 +359,10 @@ export function ProfilePage() {
               <span className="text-[11px] tabular-nums text-muted-foreground">01</span>
             </div>
             <div className="mt-8">
-              <h3 className="text-sm font-medium">{profile.resume?.atsScore ?? 92}% ATS Match</h3>
+              <h3 className="text-sm font-medium">{completionPercentage}% Complete</h3>
               <p className="mt-1 text-xs text-muted-foreground truncate">
-                {profile.resume?.fileName || "Resume uploaded"}
+                {profile.targetRoles.length} target role
+                {profile.targetRoles.length === 1 ? "" : "s"}
               </p>
             </div>
           </div>
@@ -339,7 +376,7 @@ export function ProfilePage() {
               <span className="text-[11px] tabular-nums text-muted-foreground">02</span>
             </div>
             <div className="mt-8">
-              <h3 className="text-sm font-medium">{profile.skills.length} Verified Skills</h3>
+              <h3 className="text-sm font-medium">{profile.skills.length} Skills</h3>
               <p className="mt-1 text-xs text-muted-foreground">
                 {profile.skills.filter((s) => s.level === "Expert").length} Expert ·{" "}
                 {profile.skills.filter((s) => s.level === "Advanced").length} Advanced
@@ -360,7 +397,9 @@ export function ProfilePage() {
                 {(profile.tailoredResumes || []).length} Tailored Resumes
               </h3>
               <p className="mt-1 text-xs text-muted-foreground truncate">
-                Latest: {profile.tailoredResumes?.[0]?.company || "Kepler Systems"}
+                {profile.tailoredResumes[0]
+                  ? `Latest: ${profile.tailoredResumes[0].jobTitle}`
+                  : "Save one from the Resume Agent"}
               </p>
             </div>
           </div>
@@ -378,7 +417,7 @@ export function ProfilePage() {
                 {(profile.activities || []).length} Agent Actions
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Tone: {profile.aiPreferences?.tone || "Ambitious"}
+                Tone: {profile.aiPreferences.tone}
               </p>
             </div>
           </div>
@@ -687,63 +726,30 @@ export function ProfilePage() {
             </div>
           )}
 
-          {/* TAB 4: RESUME & ATS INTELLIGENCE */}
+          {/* TAB 4: RESUME */}
           {activeTab === "resume" && (
             <div className="rise-in space-y-6">
-              <Panel
-                title="Active Resume Document"
-                aside={`ATS Score: ${profile.resume?.atsScore}%`}
-              >
-                <div className="space-y-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium">{profile.resume?.fileName}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Uploaded on {profile.resume?.uploadedAt} ·{" "}
-                        {profile.resume?.parsedSkillsCount} skills parsed
-                      </p>
-                    </div>
+              <Panel title="Resume" aside="Upload coming soon">
+                <div className="space-y-4 text-xs leading-relaxed text-muted-foreground">
+                  <p>
+                    Uploading and parsing your own resume file isn't available yet. Until then, the
+                    agents work from the profile on this page.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
                     <LineButton
                       variant="outline"
                       className="gap-2 text-xs"
-                      onClick={() => {
-                        uploadResumeSimulated(`${profile.name.replace(/\s+/g, "_")}_CV_2026.pdf`);
-                        toast.success("Resume updated & parsed!");
-                      }}
+                      onClick={() => router.push("/agents/resume")}
                     >
-                      <OutlineIcon icon={Upload} size={14} /> Re-parse Resume
+                      <OutlineIcon icon={FileText} size={14} /> Draft a resume
                     </LineButton>
-                  </div>
-
-                  <div className="border-t border-border pt-4 space-y-3">
-                    <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      ATS Parser Breakdown
-                    </p>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Keyword Density</span>
-                        <span className="tabular-nums font-medium">95%</span>
-                      </div>
-                      <div className="h-px w-full bg-border">
-                        <div className="h-px bg-ink" style={{ width: "95%" }} />
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Formatting Structure</span>
-                        <span className="tabular-nums font-medium">92%</span>
-                      </div>
-                      <div className="h-px w-full bg-border">
-                        <div className="h-px bg-ink" style={{ width: "92%" }} />
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Measurable Impact</span>
-                        <span className="tabular-nums font-medium">88%</span>
-                      </div>
-                      <div className="h-px w-full bg-border">
-                        <div className="h-px bg-ink" style={{ width: "88%" }} />
-                      </div>
-                    </div>
+                    <LineButton
+                      variant="outline"
+                      className="gap-2 text-xs"
+                      onClick={() => router.push("/agents/validation")}
+                    >
+                      <OutlineIcon icon={ShieldCheck} size={14} /> Check ATS readiness
+                    </LineButton>
                   </div>
                 </div>
               </Panel>
@@ -762,7 +768,7 @@ export function ProfilePage() {
                   <div className="space-y-3">
                     {(profile.tailoredResumes || []).length === 0 ? (
                       <p className="text-xs text-muted-foreground italic">
-                        No tailored resumes generated yet.
+                        None yet. Run the Resume Agent and choose "Save to profile".
                       </p>
                     ) : (
                       profile.tailoredResumes.map((tres) => (
@@ -774,12 +780,16 @@ export function ProfilePage() {
                             <div>
                               <div className="flex items-center gap-2">
                                 <h4 className="text-sm font-medium">{tres.jobTitle}</h4>
-                                <span className="text-xs tabular-nums text-muted-foreground">
-                                  ({tres.atsScore}% ATS)
-                                </span>
+                                {tres.atsScore !== null ? (
+                                  <span className="text-xs tabular-nums text-muted-foreground">
+                                    ({tres.atsScore}% ATS)
+                                  </span>
+                                ) : null}
                               </div>
                               <p className="text-xs text-muted-foreground mt-0.5">
-                                {tres.company} · {tres.createdAt}
+                                {[tres.company, formatDate(tres.createdAt)]
+                                  .filter(Boolean)
+                                  .join(" · ")}
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -793,7 +803,7 @@ export function ProfilePage() {
                               <button
                                 onClick={() => {
                                   deleteTailoredResume(tres.id);
-                                  toast.info(`Deleted resume for ${tres.company}.`);
+                                  toast.info(`Deleted "${tres.jobTitle}".`);
                                 }}
                                 className="text-muted-foreground/50 hover:text-foreground transition-colors"
                                 title="Delete"
@@ -821,7 +831,12 @@ export function ProfilePage() {
 
               {/* Activity Feed (5 cols) */}
               <div className="md:col-span-5">
-                <Panel title="Agent Activity Log" aside="Real-time stream">
+                <Panel title="Agent Activity Log" aside="This browser">
+                  {profile.activities.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      Nothing yet. Agent runs and saved resumes will appear here.
+                    </p>
+                  ) : null}
                   <ol className="relative border-l border-border pl-4 space-y-5 text-xs">
                     {(profile.activities || []).map((act) => (
                       <li key={act.id} className="relative">
@@ -829,7 +844,7 @@ export function ProfilePage() {
                         <p className="font-medium text-foreground">{act.title}</p>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">{act.details}</p>
                         <span className="mt-1 block text-[10px] text-muted-foreground">
-                          {act.timestamp}
+                          {formatDate(act.timestamp)}
                         </span>
                       </li>
                     ))}
@@ -877,22 +892,15 @@ export function ProfilePage() {
                     </span>
                     <textarea
                       rows={3}
-                      value={profile.aiPreferences?.focusArea || ""}
-                      onChange={(e) =>
-                        updateProfile({
-                          aiPreferences: { ...profile.aiPreferences, focusArea: e.target.value },
-                        })
-                      }
+                      value={focusDraft ?? profile.aiPreferences.focusArea}
+                      onChange={(e) => setFocusDraft(e.target.value)}
                       placeholder="Special instructions for agents..."
                       className="mt-2 w-full border-b border-border bg-transparent pb-2 text-xs outline-none focus:border-ink"
                     />
                   </div>
 
                   <div>
-                    <LineButton
-                      variant="solid"
-                      onClick={() => toast.success("AI preferences saved.")}
-                    >
+                    <LineButton variant="solid" onClick={saveAiPreferences}>
                       Save Preferences
                     </LineButton>
                   </div>
@@ -908,11 +916,14 @@ export function ProfilePage() {
             <DialogContent className="max-w-xl">
               <DialogHeader>
                 <DialogTitle className="text-base font-medium">
-                  {selectedResumeModal.jobTitle} — {selectedResumeModal.company}
+                  {selectedResumeModal.jobTitle}
+                  {selectedResumeModal.company ? ` — ${selectedResumeModal.company}` : ""}
                 </DialogTitle>
                 <p className="text-xs text-muted-foreground">
-                  {selectedResumeModal.atsScore}% ATS Match · Created{" "}
-                  {selectedResumeModal.createdAt}
+                  {selectedResumeModal.atsScore !== null
+                    ? `${selectedResumeModal.atsScore}% ATS · `
+                    : ""}
+                  Saved {formatDate(selectedResumeModal.createdAt)}
                 </p>
               </DialogHeader>
 

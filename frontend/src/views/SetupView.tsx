@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sparkle, Target, Layers, Check } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { OutlineIcon } from "@/components/OutlineIcon";
@@ -23,14 +23,25 @@ const suggestions: Record<string, string[]> = {
 };
 
 export function Setup() {
-  const { profile, updateSkills, updateInterests, updateGoals } = useUserProfile();
+  const { profile, updateProfile, isHydrated } = useUserProfile();
   const [step, setStep] = useState(0);
 
+  // Start from what the user already has — nothing pre-selected for them.
   const [selected, setSelected] = useState<Record<string, string[]>>({
-    skills: profile.skills.map((s) => s.name),
-    interests: profile.interests.length > 0 ? profile.interests : ["AI tooling", "Infrastructure"],
-    goals: profile.goals.length > 0 ? profile.goals : ["Senior engineer", "Remote role"],
+    skills: [],
+    interests: [],
+    goals: [],
   });
+  const [seeded, setSeeded] = useState(false);
+  useEffect(() => {
+    if (!isHydrated || seeded) return;
+    setSelected({
+      skills: profile.skills.map((s) => s.name),
+      interests: profile.interests,
+      goals: profile.goals,
+    });
+    setSeeded(true);
+  }, [isHydrated, seeded, profile.skills, profile.interests, profile.goals]);
 
   const [draft, setDraft] = useState("");
   const router = useRouter();
@@ -63,23 +74,15 @@ export function Setup() {
       );
     });
 
-    // [API] Persist onboarding selections in one call.
-    // POST API_ENDPOINTS.onboarding.complete
-    //   { skills: SkillItem[], interests: string[], goals: string[] }
-    // -> PROFILE_TEMPLATE (full updated profile, incl. completionPercentage)
-    //
-    // const res = await apiFetch<typeof PROFILE_TEMPLATE>(API_ENDPOINTS.onboarding.complete, {
-    //   method: "POST",
-    //   body: JSON.stringify({ skills: newSkills, interests: selected["interests"], goals: selected["goals"] }),
-    // });
-    // updateProfile(res.data);
+    // One request for all three, so the saved profile can't be overwritten by a stale response.
+    updateProfile({
+      skills: newSkills,
+      interests: selected["interests"] || [],
+      goals: selected["goals"] || [],
+    });
 
-    updateSkills(newSkills);
-    updateInterests(selected["interests"] || []);
-    updateGoals(selected["goals"] || []);
-
-    toast.success("Profile setup complete! 7 AI Agents initialized.", {
-      description: `Welcome, ${profile.name}. Your career profile is now active.`,
+    toast.success("Profile saved.", {
+      description: "The agents will use your skills, interests and goals.",
     });
 
     router.push("/profile");

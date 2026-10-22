@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import utcnow
@@ -31,6 +31,18 @@ class ChatRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def delete_conversation(self, user_id: uuid.UUID, conversation_id: uuid.UUID) -> bool:
+        """Delete a user's conversation (its messages cascade). False if it isn't theirs."""
+        conversation = await self.get_conversation(user_id, conversation_id)
+        if conversation is None:
+            return False
+        await self.session.execute(
+            delete(ChatMessage).where(ChatMessage.conversation_id == conversation.id)
+        )
+        await self.session.delete(conversation)
+        await self.session.flush()
+        return True
 
     async def list_conversations(self, user_id: uuid.UUID, limit: int = 50) -> list[Conversation]:
         result = await self.session.execute(

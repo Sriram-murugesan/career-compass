@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
+import { AuthProvider } from "@/context/AuthContext";
 import { UserProfileProvider } from "@/context/UserProfileContext";
 import { ChatProvider } from "@/context/ChatContext";
 import { Toaster } from "@/components/ui/sonner";
@@ -11,12 +12,15 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <UserProfileProvider>
-        <ChatProvider>
-          {children}
-          <Toaster position="top-right" />
-        </ChatProvider>
-      </UserProfileProvider>
+      {/* Order matters: profile and chat both load data for the signed-in user. */}
+      <AuthProvider>
+        <UserProfileProvider>
+          <ChatProvider>
+            {children}
+            <Toaster position="top-right" />
+          </ChatProvider>
+        </UserProfileProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

@@ -13,7 +13,7 @@ dependencies = [
     "asyncpg>=0.29",
     "aiosqlite>=0.20",
     "alembic>=1.13",
-    "pyjwt>=2.9",
+    "pyjwt[crypto]>=2.9",
     "argon2-cffi>=23.1",
     "httpx>=0.27",
     "langgraph>=0.2",
@@ -78,15 +78,40 @@ include_external_packages = true
 [[tool.importlinter.contracts]]
 name = "Inside every module: router → service → repository → models (never upward)"
 type = "layers"
-containers = ["app.modules.auth", "app.modules.profile", "app.modules.chat"]
+containers = [
+    "app.modules.auth",
+    "app.modules.profile",
+    "app.modules.chat",
+    "app.modules.interview",
+    "app.modules.productivity",
+]
 layers = ["router", "dependencies", "service", "repository", "models"]
 exhaustive = false
+
+[[tool.importlinter.contracts]]
+name = "Graph module: router → service (its data layer is the shared app.knowledge package)"
+type = "layers"
+containers = ["app.modules.graph"]
+layers = ["router", "dependencies", "service"]
+
+[[tool.importlinter.contracts]]
+name = "The knowledge graph never depends on features or agents"
+type = "forbidden"
+source_modules = ["app.knowledge"]
+forbidden_modules = ["app.modules", "app.agents", "app.orchestrator", "app.llm"]
 
 [[tool.importlinter.contracts]]
 name = "Core infrastructure never depends on features"
 type = "forbidden"
 source_modules = ["app.core", "app.db"]
-forbidden_modules = ["app.modules", "app.agents", "app.orchestrator", "app.memory", "app.llm"]
+forbidden_modules = [
+    "app.modules",
+    "app.agents",
+    "app.orchestrator",
+    "app.memory",
+    "app.knowledge",
+    "app.llm",
+]
 
 [[tool.importlinter.contracts]]
 name = "Agents never import each other (they share data through graph state only)"
@@ -114,6 +139,9 @@ source_modules = [
     "app.modules.auth.service",
     "app.modules.profile.service",
     "app.modules.chat.service",
+    "app.modules.graph.service",
+    "app.modules.interview.service",
+    "app.modules.productivity.service",
 ]
 forbidden_modules = ["fastapi", "sqlalchemy"]
 allow_indirect_imports = true  # a service may use another module's public package

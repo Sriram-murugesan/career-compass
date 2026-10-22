@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -10,7 +11,8 @@ from pydantic import BaseModel
 
 from app.llm.errors import LlmBadOutput, LlmBadRequest, LlmUnavailable
 from app.llm.gateway import LlmGateway
-from app.llm.pool import build_pool
+from app.llm.pool import ProviderConfig, build_pool, providers_from_settings
+from tests.conftest import make_settings
 
 
 class FakeClock:
@@ -31,8 +33,14 @@ def completion(content: str) -> httpx.Response:
 def make_gateway(
     handler: httpx.MockTransport, keys: list[str], clock: FakeClock | None = None
 ) -> LlmGateway:
-    pool = build_pool(keys, base_url="https://llm.test/v1", large_model="big", fast_model="small")
-    return LlmGateway(pool, transport=handler, clock=clock or FakeClock())
+    provider = ProviderConfig(
+        name="groq",
+        base_url="https://llm.test/v1",
+        api_keys=keys,
+        large_model="big",
+        fast_model="small",
+    )
+    return LlmGateway(build_pool([provider]), transport=handler, clock=clock or FakeClock())
 
 
 def key_of(request: httpx.Request) -> str:
@@ -158,3 +166,73 @@ async def test_status_never_exposes_keys() -> None:
     gateway = make_gateway(httpx.MockTransport(lambda _: completion("x")), ["gsk_secret123"])
     assert "gsk_secret123" not in json.dumps(gateway.status())
     assert "gsk_secret123" not in repr(gateway._pool)
+
+
+# ── Multiple providers (Groq + OpenRouter) ──────────────────────────────────
+
+GROQ = ProviderConfig("groq", "https://groq.test/v1", ["g1", "g2"], "g-big", "g-small")
+OPENROUTER = ProviderConfig(
+    "openrouter",
+    "https://openrouter.test/api/v1",
+    ["o1"],
+    "o-big",
+    "o-small",
+    extra_headers={"X-Title": "Career Compass"},
+)
+
+
+def test_providers_are_interleaved_so_rotation_alternates_them() -> None:
+    large = [entry for entry in build_pool([GROQ, OPENROUTER]) if entry.tier == "large"]
+    assert [e.id for e in large] == ["groq-1-large", "openrouter-1-large", "groq-2-large"]
+    assert [e.model for e in large] == ["g-big", "o-big", "g-big"]
+
+
+async def test_each_provider_gets_its_own_url_model_and_headers() -> None:
+    seen: list[tuple[str, str, str | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        model = json.loads(request.content)["model"]
+        seen.append((request.url.host, model, request.headers.get("x-title")))
+        return completion("ok")
+
+    gateway = LlmGateway(build_pool([GROQ, OPENROUTER]), transport=httpx.MockTransport(handler))
+    for _ in range(3):
+        await gateway.complete(MESSAGES)
+    assert seen == [
+        ("groq.test", "g-big", None),
+        ("openrouter.test", "o-big", "Career Compass"),
+        ("groq.test", "g-big", None),
+    ]
+
+
+async def test_rate_limited_provider_fails_over_to_the_other() -> None:
+    hosts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hosts.append(request.url.host)
+        if request.url.host == "groq.test":
+            return httpx.Response(429, headers={"retry-after": "60"})
+        return completion("from openrouter")
+
+    gateway = LlmGateway(build_pool([GROQ, OPENROUTER]), transport=httpx.MockTransport(handler))
+    assert await gateway.complete(MESSAGES) == "from openrouter"
+    assert await gateway.complete(MESSAGES) == "from openrouter"
+    assert hosts.count("openrouter.test") == 2
+
+
+def test_providers_from_settings_only_includes_providers_with_keys(tmp_path: Path) -> None:
+    only_openrouter = make_settings(
+        tmp_path,
+        openrouter_api_keys="sk-or-v1-aaa,sk-or-v1-bbb",
+        openrouter_site_url="https://careercompass.test",
+    )
+    [provider] = providers_from_settings(only_openrouter)
+    assert provider.name == "openrouter"
+    assert provider.api_keys == ["sk-or-v1-aaa", "sk-or-v1-bbb"]
+    assert provider.extra_headers == {
+        "X-Title": "Career Compass",
+        "HTTP-Referer": "https://careercompass.test",
+    }
+    both = make_settings(tmp_path, groq_api_keys="gsk_a", openrouter_api_keys="sk-or-v1-a")
+    assert [p.name for p in providers_from_settings(both)] == ["groq", "openrouter"]
+    assert providers_from_settings(make_settings(tmp_path)) == []

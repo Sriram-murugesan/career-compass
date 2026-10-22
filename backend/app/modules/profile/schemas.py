@@ -19,9 +19,15 @@ class AiPreferences(ApiModel):
     auto_run_agents: bool = True
 
 
+WorkPreference = Literal["Remote", "Hybrid", "Onsite", ""]
+
+
 class ProfileOut(ApiModel):
     headline: str
+    bio: str
     location: str
+    target_salary: str
+    work_preference: WorkPreference
     experience_level: str
     target_roles: list[str]
     skills: list[Skill]
@@ -34,7 +40,10 @@ class ProfileUpdate(ApiModel):
     """PATCH body: every field optional; only the ones sent are changed."""
 
     headline: str | None = Field(default=None, max_length=200)
+    bio: str | None = Field(default=None, max_length=1000)
     location: str | None = Field(default=None, max_length=200)
+    target_salary: str | None = Field(default=None, max_length=100)
+    work_preference: WorkPreference | None = None
     experience_level: str | None = Field(default=None, max_length=100)
     target_roles: list[str] | None = Field(default=None, max_length=20)
     skills: list[Skill] | None = Field(default=None, max_length=100)
